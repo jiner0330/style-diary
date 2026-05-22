@@ -33,6 +33,7 @@ function DressingContent() {
 
   const [scene, setScene] = useState<Scene | null>(null)
   const [userGender, setUserGender] = useState<"female" | "male">("female")
+  const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [angleIndex, setAngleIndex] = useState(0)
   const [generatingAngle, setGeneratingAngle] = useState<number | null>(null)
@@ -76,6 +77,16 @@ function DressingContent() {
 
   // 客户端初始化 localStorage
   useEffect(() => { initFromStorage() }, [initFromStorage])
+
+  // 获取浏览器定位
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => console.log("[dressing] 定位未授权，跳过天气推荐"),
+      { timeout: 5000, maximumAge: 30 * 60 * 1000 },
+    )
+  }, [])
 
   // 加载场景 + 用户性别
   useEffect(() => {
@@ -461,6 +472,7 @@ function DressingContent() {
               currentOutfit={outfit}
               onGenerateOutfit={handleCompleteOutfit}
               onWearSet={wearSet}
+              userCoords={userCoords}
             />
           </div>
         </div>
@@ -611,6 +623,7 @@ function DressingContent() {
                     wearSet(items)
                     setMobileTab(null)
                   }}
+                  userCoords={userCoords}
                 />
               </div>
             )}

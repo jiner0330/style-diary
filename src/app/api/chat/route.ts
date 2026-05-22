@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { chat, type Message, type ToolDef } from "@/lib/ai"
 import { getSystemPrompt, queryRules, queryFormulas, queryHacks, getCurrentSeason } from "@/lib/matching-rules"
 import { MOCK_CLOTHING, getItemById } from "@/lib/mock-data"
+import { fetchWeather, weatherSummary, type WeatherData } from "@/lib/weather"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -388,9 +389,11 @@ async function agentLoop(
   userMessage: string,
   currentOutfit: OutfitSlot,
   userToken: string | null,
+  weather: WeatherData | null,
 ): Promise<{ content: string; rounds: number }> {
+  const weatherCtx = weather ? `\n\n## 当前天气\n${weatherSummary(weather)}` : ""
   const messages: Message[] = [
-    { role: "system", content: getSystemPrompt() },
+    { role: "system", content: getSystemPrompt() + weatherCtx },
     { role: "user", content: userMessage },
   ]
 
@@ -456,9 +459,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { message, currentOutfit } = body as {
+    const { message, currentOutfit, coords } = body as {
       message: string
       currentOutfit?: OutfitSlot
+      coords?: { lat: number; lon: number } | null
     }
 
     if (!message || message.trim().length === 0) {
@@ -468,8 +472,15 @@ export async function POST(request: NextRequest) {
     const outfit = currentOutfit || EMPTY_OUTFIT
     console.log(`[chat] outfit received:`, JSON.stringify(outfit))
 
+    // 获取天气数据
+    let weather: WeatherData | null = null
+    if (coords && coords.lat && coords.lon) {
+      weather = await fetchWeather(coords.lat, coords.lon)
+      if (weather) console.log(`[chat] weather: ${weatherSummary(weather)}`)
+    }
+
     console.log(`[chat] User: ${message}`)
-    const { content, rounds } = await agentLoop(message.trim(), outfit, userToken)
+    const { content, rounds } = await agentLoop(message.trim(), outfit, userToken, weather)
     console.log(`[chat] AI (${rounds} rounds):`, content.slice(0, 120))
 
     return NextResponse.json({ content, rounds })

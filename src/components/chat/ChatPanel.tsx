@@ -16,6 +16,7 @@ interface Props {
   onClose?: () => void
   onGenerateOutfit: () => void
   onWearSet: (items: { slot: string; itemId: string }[]) => void
+  userCoords?: { lat: number; lon: number } | null
 }
 
 const QUICK_COMMANDS = [
@@ -48,7 +49,7 @@ function parseItemIds(text: string): { slot: string; itemId: string }[] {
   return result
 }
 
-export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, onWearSet }: Props) {
+export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, onWearSet, userCoords }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
@@ -137,7 +138,7 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI }),
+        body: JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, coords: userCoords }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "请求失败")
