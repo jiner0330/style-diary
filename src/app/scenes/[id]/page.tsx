@@ -89,7 +89,7 @@ export default function SceneDetailPage() {
                        tracking-wide transition-all active:scale-[0.98]
                        text-lg"
           >
-            让小裁帮我搭配
+            让搭搭帮我搭配
           </button>
 
           <button

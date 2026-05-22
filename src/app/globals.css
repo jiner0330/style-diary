@@ -12,21 +12,66 @@
   --color-soft-white: #FAF7F4;
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   background-color: #FAF7F4;
   color: #5C5C5C;
   font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
 }
+
+button, a, [role="button"], summary {
+  touch-action: manipulation;
+}
+
+/* 人台呼吸动画 */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.006); }
+}
+
+/* 单品掉落闪亮 */
+@keyframes glow-pulse {
+  0% { box-shadow: 0 0 0px rgba(221, 161, 152, 0); }
+  40% { box-shadow: 0 0 80px rgba(221, 161, 152, 0.35), 0 0 160px rgba(221, 161, 152, 0.15); }
+  100% { box-shadow: 0 0 0px rgba(221, 161, 152, 0); }
+}
+
+/* 星星漂浮 */
+@keyframes sparkle-float {
+  0% { opacity: 0; transform: translateY(0) scale(0.5); }
+  30% { opacity: 1; transform: translateY(-20px) scale(1.2); }
+  60% { opacity: 0.8; transform: translateY(-40px) scale(1); }
+  100% { opacity: 0; transform: translateY(-80px) scale(0.6); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-breathe { animation: breathe 6s ease-in-out infinite; }
+.animate-glow-pulse { animation: glow-pulse 0.7s ease-out; }
+.animate-sparkle-float { animation: sparkle-float 1.5s ease-out forwards; }
+.animate-fade-in-up { animation: fadeInUp 0.4s ease-out; }
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0,0,0,0.04);
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D4C5C2;
-  border-radius: 2px;
+  background: #C4A8A3;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #A0807B;
 }

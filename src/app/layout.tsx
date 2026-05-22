@@ -1,10 +1,17 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { Toaster } from "react-hot-toast"
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
+
 export const metadata: Metadata = {
   title: "风格日记 - 你的AI造型师",
-  description: "和小裁一起，为生活的每个重要时刻找到属于你的搭配",
+  description: "和搭搭一起，为生活的每个重要时刻找到属于你的搭配",
 }
 
 export default function RootLayout({
@@ -14,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <main className="flex-1 flex flex-col max-w-md mx-auto w-full">
           {children}
         </main>

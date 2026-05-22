@@ -116,7 +116,7 @@ export default function OnboardingPage() {
       })
 
       if (error) throw error
-      toast.success("小裁已经记住你的数据了 ✨")
+      toast.success("搭搭已经记住你的数据了 ✨")
       router.push("/scenes")
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "保存失败"
@@ -146,7 +146,7 @@ export default function OnboardingPage() {
         <div className="flex-1 space-y-6">
           <div className="text-center space-y-1">
             <h2 className="text-xl font-semibold text-charcoal">先认识一下</h2>
-            <p className="text-sm text-warm-gray">穿搭不分性别，小裁都能帮到你</p>
+            <p className="text-sm text-warm-gray">穿搭不分性别，搭搭都能帮到你</p>
           </div>
 
           <div>
@@ -197,7 +197,7 @@ export default function OnboardingPage() {
       {step === 2 && (
         <div className="flex-1 space-y-5">
           <h2 className="text-xl font-semibold text-charcoal text-center">
-            让小裁了解你的身材
+            让搭搭了解你的身材
           </h2>
 
           {[

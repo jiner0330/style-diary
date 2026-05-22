@@ -43,6 +43,7 @@ export interface ClothingItem {
   color: string
   material: string | null
   pattern: string | null
+  detail?: string | null
   style_tags: string[]
   image_url: string | null
   layer_order: number
