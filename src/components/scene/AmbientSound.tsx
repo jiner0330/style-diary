@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect } from "react"
+import { useAudio } from "./AudioProvider"
 
 interface Props {
   moodTags: string[]
@@ -19,7 +20,6 @@ function detectSoundTheme(name: string, moodTags: string[]): string {
   return "cafe"
 }
 
-// 简易噪声生成器
 function createNoiseBuffer(ctx: AudioContext, duration: number, filter?: (i: number) => number): AudioBuffer {
   const sampleRate = ctx.sampleRate
   const length = sampleRate * duration
@@ -36,12 +36,7 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
   const now = ctx.currentTime
 
   if (theme === "cafe") {
-    // 咖啡馆 — 低沉环境音 + 轻柔杯碟声
-    const brownNoise = createNoiseBuffer(ctx, 8, (i) => {
-      let sample = Math.random() * 2 - 1
-      // 简易布朗噪声：累积随机偏移
-      return Math.tanh(sample * 0.3)
-    })
+    const brownNoise = createNoiseBuffer(ctx, 8, () => Math.tanh((Math.random() * 2 - 1) * 0.3))
     const noiseSrc = ctx.createBufferSource()
     noiseSrc.buffer = brownNoise
     noiseSrc.loop = true
@@ -54,7 +49,6 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
     noiseSrc.start(now)
     nodes.push(noiseSrc, noiseFilter, noiseGain)
 
-    // 偶尔的瓷杯轻碰声
     const chimeInterval = setInterval(() => {
       if (ctx.state !== "running") return
       const osc = ctx.createOscillator()
@@ -69,23 +63,12 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
       osc.stop(ctx.currentTime + 0.35)
     }, 4000 + Math.random() * 6000)
 
-    return {
-      nodes,
-      cleanup: () => clearInterval(chimeInterval),
-    }
+    return { nodes, cleanup: () => clearInterval(chimeInterval) }
   }
 
   if (theme === "waves") {
-    // 海浪 — 粉红噪声低频滤波
     const pinkNoise = createNoiseBuffer(ctx, 8, () => {
-      // 简易粉噪
-      let b0 = 0,
-        b1 = 0,
-        b2 = 0,
-        b3 = 0,
-        b4 = 0,
-        b5 = 0,
-        b6 = 0
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0
       const white = Math.random() * 2 - 1
       b0 = 0.99886 * b0 + white * 0.0555179
       b1 = 0.99332 * b1 + white * 0.0750759
@@ -95,7 +78,6 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
       b5 = -0.7616 * b5 - white * 0.016898
       return (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11
     })
-
     const noiseSrc = ctx.createBufferSource()
     noiseSrc.buffer = pinkNoise
     noiseSrc.loop = true
@@ -104,23 +86,19 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
     noiseFilter.frequency.value = 500
     const noiseGain = ctx.createGain()
     noiseGain.gain.value = 0.12
-    // 音量起伏模拟潮汐
     const lfo = ctx.createOscillator()
     lfo.frequency.value = 0.08
     const lfoGain = ctx.createGain()
     lfoGain.gain.value = 0.03
     lfo.connect(lfoGain).connect(noiseGain.gain)
     lfo.start(now)
-
     noiseSrc.connect(noiseFilter).connect(noiseGain).connect(ctx.destination)
     noiseSrc.start(now)
     nodes.push(noiseSrc, noiseFilter, noiseGain, lfo, lfoGain)
-
     return { nodes, cleanup: () => {} }
   }
 
   if (theme === "forest") {
-    // 森林 — 轻柔风声 + 鸟鸣
     const windNoise = createNoiseBuffer(ctx, 8)
     const windSrc = ctx.createBufferSource()
     windSrc.buffer = windNoise
@@ -135,7 +113,6 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
     windSrc.start(now)
     nodes.push(windSrc, windFilter, windGain)
 
-    // 随机鸟鸣
     const birdInterval = setInterval(() => {
       if (ctx.state !== "running") return
       const osc = ctx.createOscillator()
@@ -154,14 +131,10 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
       osc.stop(ctx.currentTime + 0.35)
     }, 2000 + Math.random() * 4000)
 
-    return {
-      nodes,
-      cleanup: () => clearInterval(birdInterval),
-    }
+    return { nodes, cleanup: () => clearInterval(birdInterval) }
   }
 
   if (theme === "rain") {
-    // 雨声 — 高频噪声滤波
     const rainNoise = createNoiseBuffer(ctx, 8)
     const rainSrc = ctx.createBufferSource()
     rainSrc.buffer = rainNoise
@@ -175,12 +148,10 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
     rainSrc.connect(rainFilter).connect(rainGain).connect(ctx.destination)
     rainSrc.start(now)
     nodes.push(rainSrc, rainFilter, rainGain)
-
     return { nodes, cleanup: () => {} }
   }
 
   if (theme === "city") {
-    // 城市 — 低沉嗡嗡声
     const cityNoise = createNoiseBuffer(ctx, 8)
     const citySrc = ctx.createBufferSource()
     citySrc.buffer = cityNoise
@@ -193,12 +164,10 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
     citySrc.connect(cityFilter).connect(cityGain).connect(ctx.destination)
     citySrc.start(now)
     nodes.push(citySrc, cityFilter, cityGain)
-
     return { nodes, cleanup: () => {} }
   }
 
   if (theme === "night") {
-    // 夜晚 — 极轻柔的低频 + 蟋蟀声
     const nightNoise = createNoiseBuffer(ctx, 8)
     const nightSrc = ctx.createBufferSource()
     nightSrc.buffer = nightNoise
@@ -212,7 +181,6 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
     nightSrc.connect(nightFilter).connect(nightGain).connect(ctx.destination)
     nightSrc.start(now)
     nodes.push(nightSrc, nightFilter, nightGain)
-
     return { nodes, cleanup: () => {} }
   }
 
@@ -220,57 +188,60 @@ function setupSoundscape(ctx: AudioContext, theme: string): { nodes: AudioNode[]
 }
 
 export default function AmbientSound({ name, moodTags, ambientSoundUrl }: Props) {
-  const [playing, setPlaying] = useState(false)
+  const { isPlaying, currentUrl, play, stop } = useAudio()
+  const isThisPlaying = !!(ambientSoundUrl && isPlaying && currentUrl === ambientSoundUrl)
+
+  // 合成音频 fallback（无 MP3 时）
+  const [synthPlaying, setSynthPlaying] = useState(false)
   const ctxRef = useRef<AudioContext | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
   const theme = detectSoundTheme(name, moodTags)
 
   useEffect(() => {
     return () => {
       cleanupRef.current?.()
       ctxRef.current?.close()
-      audioRef.current?.pause()
-      audioRef.current = null
     }
   }, [])
 
-  const toggle = useCallback(() => {
-    if (playing) {
+  const toggleSynth = useCallback(() => {
+    if (synthPlaying) {
       cleanupRef.current?.()
       cleanupRef.current = null
       ctxRef.current?.close()
       ctxRef.current = null
-      audioRef.current?.pause()
-      audioRef.current = null
-      setPlaying(false)
-    } else if (ambientSoundUrl) {
-      const audio = new Audio(ambientSoundUrl)
-      audio.loop = true
-      audio.play().catch(() => {})
-      audioRef.current = audio
-      setPlaying(true)
+      setSynthPlaying(false)
     } else {
       const ctx = new AudioContext()
       ctxRef.current = ctx
       const { cleanup } = setupSoundscape(ctx, theme)
       cleanupRef.current = cleanup
-      setPlaying(true)
+      setSynthPlaying(true)
     }
-  }, [playing, theme, ambientSoundUrl])
+  }, [synthPlaying, theme])
+
+  const toggle = () => {
+    if (ambientSoundUrl) {
+      isThisPlaying ? stop() : play(ambientSoundUrl)
+    } else {
+      toggleSynth()
+    }
+  }
+
+  const active = ambientSoundUrl ? isThisPlaying : synthPlaying
 
   return (
     <button
       onClick={toggle}
-      className={`w-10 h-10 rounded-full flex items-center justify-center text-sm
+      className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium
                  backdrop-blur-sm transition-all active:scale-95
-                 ${playing
-                   ? "bg-rose/30 text-rose shadow-sm"
-                   : "bg-soft-white/80 text-warm-gray"
+                 ${active
+                   ? "bg-rose/25 text-rose shadow-sm"
+                   : "bg-soft-white/80 text-warm-gray hover:bg-soft-white"
                  }`}
-      title={playing ? "关闭环境音" : "播放环境音"}
     >
-      {playing ? "🔊" : "🔈"}
+      <span>{active ? "🔊" : "🔈"}</span>
+      <span>{active ? "关闭" : "环境音"}</span>
     </button>
   )
 }

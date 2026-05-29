@@ -1,6 +1,14 @@
 import type { Metadata, Viewport } from "next"
+import { ZCOOL_KuaiLe } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "react-hot-toast"
+import { AudioProvider } from "@/components/scene/AudioProvider"
+
+const zcoolKuaiLe = ZCOOL_KuaiLe({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+})
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -20,11 +28,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="zh-CN" className="h-full antialiased">
+    <html lang="zh-CN" className={`h-full antialiased ${zcoolKuaiLe.className}`}>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <main className="flex-1 flex flex-col max-w-md mx-auto w-full">
-          {children}
-        </main>
+        <AudioProvider>
+          <main className="flex-1 flex flex-col max-w-md mx-auto w-full">
+            {children}
+          </main>
+        </AudioProvider>
         <Toaster
           position="top-center"
           toastOptions={{
