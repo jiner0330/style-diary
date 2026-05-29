@@ -4,6 +4,9 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import type { Scene } from "@/types"
+import SceneIllustration from "@/components/scene/SceneIllustration"
+import AmbientSound from "@/components/scene/AmbientSound"
+import { enrichScene } from "@/lib/scene-assets"
 import toast from "react-hot-toast"
 
 export default function SceneDetailPage() {
@@ -25,7 +28,7 @@ export default function SceneDetailPage() {
         router.push("/scenes")
         return
       }
-      setScene(data)
+      setScene(enrichScene(data))
       setLoading(false)
     }
     if (id) load()
@@ -44,24 +47,16 @@ export default function SceneDetailPage() {
   return (
     <div className="flex flex-col flex-1">
       {/* 顶部氛围插画 */}
-      <div className="w-full h-64 bg-cream/50 flex items-center justify-center text-6xl
-                      relative overflow-hidden">
-        {scene.mood_tags?.[0] === '松弛' && '🥂'}
-        {scene.mood_tags?.[0] === '安静' && '📖'}
-        {scene.mood_tags?.[0] === '自信' && '💼'}
-        {scene.mood_tags?.[0] === '期待' && '💕'}
-        {scene.mood_tags?.[0] === '表达' && '🎨'}
-        {scene.mood_tags?.[0] === '自由' && '🌊'}
-        {scene.mood_tags?.[0] === '释然' && '✨'}
-        {/* 场景环境音占位 */}
-        <button
-          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-soft-white/80
-                     flex items-center justify-center text-sm text-warm-gray
-                     backdrop-blur-sm"
-          title="环境音"
-        >
-          🔊
-        </button>
+      <div className="relative overflow-hidden">
+        <SceneIllustration name={scene.name} moodTags={scene.mood_tags || []} illustrationUrl={scene.illustration_url} />
+        {/* 场景名叠加 */}
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
+        <h1 className="absolute bottom-4 left-5 text-xl font-semibold text-white tracking-wide drop-shadow-md">
+          {scene.name}
+        </h1>
+        <div className="absolute top-4 right-4 z-10">
+          <AmbientSound name={scene.name} moodTags={scene.mood_tags || []} ambientSoundUrl={scene.ambient_sound_url} />
+        </div>
       </div>
 
       {/* 前情提要 */}
@@ -84,20 +79,12 @@ export default function SceneDetailPage() {
         {/* 操作按钮 */}
         <div className="space-y-3">
           <button
-            onClick={() => router.push(`/dressing?id=${scene.id}&mode=ai`)}
-            className="w-full py-4 rounded-2xl bg-rose text-soft-white font-medium
+            onClick={() => router.push(`/dressing?id=${scene.id}`)}
+            className="w-full py-4 rounded-2xl bg-charcoal text-soft-white font-medium
                        tracking-wide transition-all active:scale-[0.98]
                        text-lg"
           >
-            让搭搭帮我搭配
-          </button>
-
-          <button
-            onClick={() => router.push(`/dressing?id=${scene.id}&mode=manual`)}
-            className="w-full py-4 rounded-2xl border border-warm-gray text-charcoal
-                       font-medium tracking-wide transition-all active:scale-[0.98]"
-          >
-            我自己搭配
+            开始搭配
           </button>
         </div>
       </div>
