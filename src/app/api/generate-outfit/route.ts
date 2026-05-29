@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { writeFile, mkdir } from "fs/promises"
+import { writeFile, mkdir, stat, readFile } from "fs/promises"
 import path from "path"
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
@@ -7,6 +7,19 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 const OFOXAI_KEY = process.env.OFOXAI_API_KEY!
 const OFOXAI_BASE = process.env.OFOXAI_BASE_URL || "https://api.ofox.ai"
 const MODEL = "openai/gpt-image-2"
+
+const OUT_DIR = path.join(process.cwd(), "public", "outputs")
+
+function taskFile(seed: number) { return path.join(OUT_DIR, `.task-${seed}.json`) }
+function imageFile(seed: number) { return path.join(OUT_DIR, `outfit-${seed}.png`) }
+
+interface TaskData {
+  status: "generating" | "done" | "error"
+  imageUrl?: string
+  prompt?: string
+  promptZh?: string
+  error?: string
+}
 
 interface OutfitItem {
   slot: string
@@ -16,6 +29,7 @@ interface OutfitItem {
   material?: string
   pattern?: string
   sub_category?: string
+  length?: string
   detail?: string
   style_tags?: string[]
   image_url?: string
@@ -50,14 +64,18 @@ const SUBCAT_SHAPE: Record<string, string> = {
   wide_jeans: "high-waist wide-leg jeans, loose and relaxed from hip to ankle, oversized silhouette, five-pocket styling",
 
   // ---- Skirts (finer subtypes) ----
-  mermaid_skirt: "fishtail mermaid skirt, fitted through the hips and thighs, flaring dramatically at the knee into a trumpet hem, maxi length",
+  mermaid_skirt: "fishtail mermaid skirt, fitted through the hips and thighs, flaring dramatically at the knee into a trumpet hem",
   pencil_skirt: "pencil skirt, slim straight cut, fitted from waist to knee or below, back slit, office-ready silhouette",
+  tiered_tulle_skirt: "layered tiered tulle skirt, multiple stacked horizontal ruffled layers, soft gathered texture",
+  a_line_skirt: "A-line skirt, fitted at the natural waist, flaring gently outward to the hem",
+  pleated_skirt: "pleated skirt, evenly pressed fine pleats from waistband falling straight, structured folds",
 
   // ---- Dresses ----
   mini: "mini dress, short hemline above the knee, fitted or flared silhouette",
   midi: "midi dress, hemline falling between knee and ankle, feminine silhouette",
   maxi: "maxi dress, full-length hemline to the ankles, flowing or fitted silhouette",
   off_shoulder_dress: "off-shoulder dress, neckline sitting below the shoulders, fitted waist, flared or straight skirt, feminine silhouette",
+  qipao: "Chinese qipao cheongsam dress, small mandarin stand-up collar, diagonal front placket with knotted frog button closures, slim fitted silhouette, side slit at the lower hem, elegant traditional tailoring",
 
   // ---- Outerwear ----
   blazer: "tailored blazer, structured shoulders, notched lapels, single-breasted button front, flap pockets, long sleeves",
@@ -85,7 +103,7 @@ function describeColor(hex: string): string {
     "#A3B5C4": "slate blue", "#B4C1A8": "olive green", "#C4A8A3": "muted rose",
     "#D4A5A5": "mauve", "#E8DED1": "cream", "#6B8FA3": "blue",
     "#7B9CB5": "denim blue", "#3A5A3A": "forest green", "#5C3A2A": "dark brown",
-    "#8B2252": "burgundy red", "#E8B4B8": "pink", "#E8D8A0": "butter yellow",
+    "#8B2252": "burgundy red", "#E8B4B8": "pink", "#E8C4C9": "misty pink", "#C1D8C3": "fresh green", "#F5E68C": "lemon yellow", "#E8D8A0": "butter yellow",
     "#DDA040": "mustard yellow", "#1A2A4A": "navy", "#F5F0D0": "pale yellow",
   }
   return map[hex] || hex
@@ -148,14 +166,14 @@ const DETAIL_TRANSLATE: Record<string, string> = {
   "鱼骨": "structured boning", "骨": "boning", "后背": "back",
   "内衬": "lining", "双肩": "shoulder",
   // Modifiers
-  "蝴蝶结": "bow detail", "小飞袖": "small flutter sleeve", "飞袖": "flutter sleeve",
-  "A字": "A-line", "拼接线": "panel seam line", "拼接": "panel seam",
+  "蝴蝶结飘带": "ribbon bow tie", "蝴蝶结": "bow detail", "喇叭袖": "bell sleeve", "细吊带": "thin spaghetti strap", "吊带": "spaghetti strap", "小玫瑰": "small rose", "玫瑰": "rose", "花卉": "floral", "亮面": "glossy finish", "飘带": "ribbon tie", "透感": "sheer translucency", "小飞袖": "small flutter sleeve", "飞袖": "flutter sleeve",
+  "蝴蝶结系带": "bow tie ribbon", "大摆": "wide flared", "端庄": "elegant and poised", "A字": "A-line", "拼接线": "panel seam line", "拼接": "panel seam",
   "三分之一": "one-third", "处": "point",
-  "设计": "design", "自然": "natural", "较": "slightly",
+  "设计": "design", "自然": "natural", "较": "slightly", "哑光": "matte", "素色": "solid color", "领口": "neckline", "装饰": "decoration", "优雅": "elegant", "整体": "overall", "裙摆": "hemline",
   "较有": "slightly", "微收": "slightly gathered", "慵懒": "slouchy",
-  "膝上": "above the knee", "至膝上": "to above the knee",
-  "方领设计": "square neckline design",
-  "不对称": "asymmetric", "斜肩": "one-shoulder", "油画": "oil painting style", "质感": "texture", "晕染": "watercolor wash",
+  "膝上": "above the knee", "至膝上": "to above the knee", "脚踝": "the ankle", "缎面": "satin finish", "光泽": "luminous sheen",
+  "小立领": "small mandarin stand collar", "立领": "mandarin stand collar", "斜襟": "diagonal front placket", "盘扣": "knotted frog button", "省道": "tailored dart", "开衩": "side slit", "旗袍": "qipao cheongsam silhouette", "印花": "print design", "素雅": "subtle and refined", "暗纹": "subtle tonal pattern", "方领设计": "square neckline design",
+  "不对称": "asymmetric", "斜肩": "one-shoulder", "露背": "backless", "波点": "polka dot", "开口": "opening", "两侧": "both sides", "垂落": "draping down", "均匀": "evenly", "分布": "distributed", "细微": "subtle", "纹理": "texture", "腰间": "waist", "侧边": "side", "肩部": "the shoulders", "横跨": "across", "背部": "back", "正面": "front", "大面积": "wide area", "深度": "depth", "适中": "moderate", "油画": "oil painting style", "质感": "texture", "晕染": "watercolor wash",
   "翻领": "folded collar", "衬衫领": "shirt collar", "纽扣": "button",
   "落肩": "dropped shoulder", "罗纹": "ribbed", "无领": "collarless", "半开襟": "half placket", "粒扣": "button closure", "两粒扣": "two-button closure", "带盖": "flap", "胸前": "chest",
   "竖条纹": "vertical stripe", "小": "small", "前襟": "front placket", "敞开": "open",
@@ -196,12 +214,20 @@ function translateDetail(detail: string): string {
   return result || detail.replace(/[\u4e00-\u9fff]+/g, "").trim()
 }
 
+const LENGTH_MAP: Record<string, string> = {
+  "短款": "mini length, above the knee",
+  "常规": "regular length",
+  "中长": "midi length, between knee and calf",
+  "长款": "maxi length, ankle-length or floor-length",
+}
+
 function describeItem(i: OutfitItem): string {
   const color = describeColor(i.color)
   const material = i.material || ""
   const pattern = i.pattern || ""
   const detail = translateDetail(i.detail || "")
   const shape = (i.sub_category && SUBCAT_SHAPE[i.sub_category]) || ""
+  const lengthHint = (i.length && LENGTH_MAP[i.length]) || ""
 
   const attrs: string[] = []
   // Start with the silhouette as the core description
@@ -210,6 +236,8 @@ function describeItem(i: OutfitItem): string {
   attrs[0] = `${color} ${attrs[0]}`
   // Material
   if (material) attrs.push(MATERIAL_TEXTURE[material] || `${material} fabric`)
+  // Length constraint — reinforces the sub_category description
+  if (lengthHint) attrs.push(`hemline: ${lengthHint}`)
   // Extra design details
   if (detail) attrs.push(detail)
   // Pattern
@@ -248,15 +276,24 @@ function getMannequinView(angleIndex: number): string {
 }
 
 function buildPrompt(items: OutfitItem[], angleIndex: number = 0): string {
-  const slots = ["dress", "top", "bottom", "outerwear", "shoes", "bag"] as const
+  const mainSlots = ["dress", "top", "bottom", "outerwear", "shoes", "bag"] as const
 
   const clothingLines: string[] = []
-  for (const slot of slots) {
+  for (const slot of mainSlots) {
     const item = items.find((i) => i.slot === slot)
     if (item) {
       clothingLines.push(`- ${SLOT_LABEL[slot]}: A ${describeItem(item)}`)
     }
   }
+
+  // 配饰单独描述
+  const accessories = items.filter((i) => i.slot === "accessories")
+  const accessoryLines: string[] = []
+  for (const acc of accessories) {
+    const color = describeColor(acc.color)
+    accessoryLines.push(`- ${color} ${acc.name}`)
+  }
+  const hasAccessories = accessoryLines.length > 0
 
   const hasBottom = items.some((i) => i.slot === "bottom")
   const hasDress = items.some((i) => i.slot === "dress")
@@ -270,10 +307,13 @@ function buildPrompt(items: OutfitItem[], angleIndex: number = 0): string {
     "She is wearing:",
     ...clothingLines,
     "",
+    ...(hasAccessories
+      ? ["She is wearing these accessories:", ...accessoryLines, ""]
+      : []),
     ...(!hasDress && !hasBottom ? ["No pants, shorts, or skirt — lower body remains bare."] : []),
     ...(!hasShoes ? ["No shoes — feet remain bare."] : []),
     "",
-    "Strictly no accessories, no patterns, no bows, no ribbons, no extra design elements not listed above.",
+    ...(!hasAccessories ? ["Strictly no accessories, no patterns, no bows, no ribbons, no extra design elements not listed above."] : []),
   ]
 
   return lines.join("\n")
@@ -309,6 +349,7 @@ const SUBCAT_SHAPE_ZH: Record<string, string> = {
   midi: "中长款连衣裙，裙长在膝与踝之间",
   maxi: "长款连衣裙，裙长至脚踝",
   off_shoulder_dress: "一字肩收腰连衣裙，领口低于肩线，收腰设计",
+  qipao: "中式旗袍，小立领，斜襟盘扣，修身版型，侧边开衩，端庄传统",
   blazer: "修身西装外套，挺括肩部，翻驳领，单排扣",
   jacket: "短款夹克，衣长及腰，箱型版型，前拉链或纽扣",
   trench: "长款风衣，双排扣，翻驳领，腰带收腰，及膝或更长",
@@ -330,7 +371,7 @@ function describeColorZh(hex: string): string {
     "#A3B5C4": "灰蓝色", "#B4C1A8": "军绿色", "#C4A8A3": "豆沙粉",
     "#D4A5A5": "粉棕色", "#E8DED1": "奶油色", "#6B8FA3": "蓝色",
     "#7B9CB5": "牛仔蓝", "#3A5A3A": "深绿色", "#5C3A2A": "深棕色",
-    "#8B2252": "酒红色", "#E8B4B8": "粉色", "#E8D8A0": "鹅黄色",
+    "#8B2252": "酒红色", "#E8B4B8": "粉色", "#E8C4C9": "雾粉色", "#C1D8C3": "清新绿", "#F5E68C": "檬黄色", "#E8D8A0": "鹅黄色",
     "#DDA040": "姜黄色", "#1A2A4A": "藏青色", "#F5F0D0": "浅黄色",
   }
   return map[hex] || hex
@@ -424,13 +465,94 @@ function buildPromptZh(items: OutfitItem[], angleIndex: number = 0): string {
   return lines.join("\n")
 }
 
+async function ensureDir() {
+  await mkdir(OUT_DIR, { recursive: true })
+}
+
+async function runGeneration(seed: number, items: OutfitItem[], angleIndex: number, prompt: string, promptZh: string) {
+  const imgPath = imageFile(seed)
+  const taskPath = taskFile(seed)
+
+  let lastError = ""
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      const delay = Math.min(2000 * Math.pow(2, attempt - 1), 12000)
+      console.log("[generate-outfit] Retry attempt", attempt + 1, "for seed", seed, "after", delay, "ms")
+      await new Promise(r => setTimeout(r, delay))
+    }
+
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 180_000)
+
+    try {
+      const res = await fetch(`${OFOXAI_BASE}/v1/images/generations`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OFOXAI_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          prompt,
+          n: 1,
+          size: "768x1152",
+          response_format: "b64_json",
+        }),
+        signal: ctrl.signal,
+      })
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "")
+        const msg = `Image generation failed: ${res.status} ${errText.slice(0, 200)}`
+        // API errors (4xx, content policy etc.) are not retryable
+        console.error("[generate-outfit] Non-retryable error:", msg)
+        lastError = msg
+        break
+      }
+
+      const data = await res.json()
+      const b64 = data.data?.[0]?.b64_json
+
+      if (!b64) {
+        lastError = "No image data returned"
+        console.error("[generate-outfit]", lastError)
+        break
+      }
+
+      await writeFile(imgPath, Buffer.from(b64, "base64"))
+
+      const taskData: TaskData = {
+        status: "done",
+        imageUrl: `/outputs/outfit-${seed}.png`,
+        prompt,
+        promptZh,
+      }
+      await writeFile(taskPath, JSON.stringify(taskData))
+      console.log("[generate-outfit] Done:", seed)
+      return
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Internal server error"
+      console.error("[generate-outfit] Attempt", attempt + 1, "failed:", message)
+      lastError = message
+      // "fetch failed" and timeout are network errors → retry
+      // Other errors (e.g. JSON parse) are not retryable
+      if (message !== "fetch failed" && !message.includes("abort")) break
+    } finally {
+      clearTimeout(t)
+    }
+  }
+
+  console.error("[generate-outfit] All attempts failed for seed", seed, ":", lastError)
+  const taskData: TaskData = { status: "error", error: lastError }
+  await writeFile(taskPath, JSON.stringify(taskData)).catch(() => {})
+}
+
+// POST: 提交生图任务（异步）
 export async function POST(request: Request) {
   try {
     if (!OFOXAI_KEY) {
-      return NextResponse.json(
-        { error: "Please set OFOXAI_API_KEY in .env.local" },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: "Please set OFOXAI_API_KEY in .env.local" }, { status: 500 })
     }
 
     const body = await request.json()
@@ -444,66 +566,116 @@ export async function POST(request: Request) {
     const prompt = buildPrompt(items, angleIndex)
     const promptZh = buildPromptZh(items, angleIndex)
 
-    // 用单品 ID + 角度生成固定 seed，同一套搭配同一角度永远出同一张图
     const itemIds = items.map((i) => i.name).sort().join("|")
     const seed = Array.from(itemIds + angleIndex).reduce((s, c) => ((s << 5) - s + c.charCodeAt(0)) | 0, 0)
 
-    console.log("[generate-outfit] Prompt:\n", prompt)
+    await ensureDir()
+    const imgPath = imageFile(seed)
+    const taskPath = taskFile(seed)
 
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 180_000)
-    let res: Response
-    try {
-      res = await fetch(`${OFOXAI_BASE}/v1/images/generations`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${OFOXAI_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          prompt,
-          n: 1,
-          size: "1024x1536",
-          response_format: "b64_json",
-          seed,
-        }),
-        signal: ctrl.signal,
+    // 缓存命中
+    const cached = await stat(imgPath).then(() => true).catch(() => false)
+    if (cached) {
+      console.log("[generate-outfit] Cache hit:", seed)
+      return NextResponse.json({
+        taskId: seed,
+        status: "done",
+        imageUrl: `/outputs/outfit-${seed}.png`,
+        prompt,
+        promptZh,
+        mode: "text_only",
+        cached: true,
       })
-    } finally {
-      clearTimeout(t)
     }
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "")
-      console.error("[generate-outfit] API error:", res.status, errText.slice(0, 300))
-      return NextResponse.json(
-        { error: `Image generation failed: ${res.status}` },
-        { status: 500 }
-      )
+    // 检查是否已有进行中的任务
+    const existingTaskStat = await stat(taskPath).then((s) => s).catch(() => null)
+    const existing = existingTaskStat ? await readFile(taskPath, "utf-8").then((raw) => JSON.parse(raw) as TaskData).catch(() => null) : null
+    const isStale = existing?.status === "generating" && existingTaskStat
+      && Date.now() - existingTaskStat.mtimeMs > 5 * 60 * 1000
+
+    if (existing?.status === "generating" && !isStale) {
+      console.log("[generate-outfit] Task already generating:", seed)
+      return NextResponse.json({ taskId: seed, status: "generating" })
     }
 
-    const data = await res.json()
-    const b64 = data.data?.[0]?.b64_json
-
-    if (!b64) {
-      console.error("[generate-outfit] No b64_json:", JSON.stringify(data).slice(0, 300))
-      return NextResponse.json({ error: "No image data returned" }, { status: 500 })
+    if (isStale) {
+      console.log("[generate-outfit] Stale task, restarting:", seed)
     }
 
-    const outDir = path.join(process.cwd(), "public", "outputs")
-    await mkdir(outDir, { recursive: true })
-    const filename = `outfit-${Date.now()}.png`
-    await writeFile(path.join(outDir, filename), Buffer.from(b64, "base64"))
+    // 写入进行中任务文件
+    const taskData: TaskData = { status: "generating" }
+    await writeFile(taskPath, JSON.stringify(taskData))
 
-    return NextResponse.json({
-      imageUrl: `/outputs/${filename}`,
-      prompt,
-      promptZh,
-      mode: "text_only",
+    // 后台生成，不等待
+    console.log("[generate-outfit] Starting background generation:", seed)
+    runGeneration(seed, items, angleIndex, prompt, promptZh).catch((err) => {
+      console.error("[generate-outfit] Background task crashed:", err)
     })
+
+    return NextResponse.json({ taskId: seed, status: "generating" })
   } catch (err) {
-    console.error("[generate-outfit]", err)
+    console.error("[generate-outfit] POST error:", err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+
+// GET: 轮询生图状态
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const taskId = searchParams.get("taskId")
+
+    if (!taskId) {
+      return NextResponse.json({ error: "Missing taskId" }, { status: 400 })
+    }
+
+    const seed = parseInt(taskId, 10)
+    if (isNaN(seed)) {
+      return NextResponse.json({ error: "Invalid taskId" }, { status: 400 })
+    }
+
+    await ensureDir()
+    const imgPath = imageFile(seed)
+    const taskPath = taskFile(seed)
+
+    // 图片已存在 → 完成
+    const imgExists = await stat(imgPath).then(() => true).catch(() => false)
+    if (imgExists) {
+      const taskInfo = await stat(taskPath).then(async () => {
+        const raw = await readFile(taskPath, "utf-8")
+        return JSON.parse(raw) as TaskData
+      }).catch(() => null)
+
+      return NextResponse.json({
+        taskId: seed,
+        status: "done",
+        imageUrl: taskInfo?.imageUrl || `/outputs/outfit-${seed}.png`,
+        prompt: taskInfo?.prompt || "",
+        promptZh: taskInfo?.promptZh || "",
+        mode: "text_only",
+      })
+    }
+
+    // 任务文件存在 → 检查状态
+    const taskInfo = await stat(taskPath).then(async () => {
+      const raw = await readFile(taskPath, "utf-8")
+      return JSON.parse(raw) as TaskData
+    }).catch(() => null)
+
+    if (taskInfo) {
+      if (taskInfo.status === "error") {
+        return NextResponse.json({ taskId: seed, status: "error", error: taskInfo.error || "生成失败" })
+      }
+      return NextResponse.json({ taskId: seed, status: "generating" })
+    }
+
+    return NextResponse.json({ taskId: seed, status: "not_found" })
+  } catch (err) {
+    console.error("[generate-outfit] GET error:", err)
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal server error" },
       { status: 500 }
