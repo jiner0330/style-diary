@@ -273,7 +273,6 @@ function DressingContent() {
     setGeneratingAngle(angleIdx)
     setResultAngle(angleIdx)
     setReviewData(null)
-    setResultImages(new Map())
 
     try {
       const res = await fetch("/api/generate-outfit", {
