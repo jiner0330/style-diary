@@ -36,6 +36,7 @@ interface Props {
   onAngleChange: (index: number) => void
   onClose: () => void
   onSave?: () => void
+  onGenerateAngle?: (index: number) => void
   reviewData?: ReviewData | null
   reviewLoading?: boolean
 }
@@ -49,12 +50,14 @@ export default function ResultModal({
   onAngleChange,
   onClose,
   onSave,
+  onGenerateAngle,
   reviewData,
   reviewLoading,
 }: Props) {
   const [dragging, setDragging] = useState(false)
   const dragStartX = useRef(0)
   const dragStartAngle = useRef(0)
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
   const currentImage = resultImages.get(resultAngle)
   const isGenerating = generatingAngle !== null && generatingAngle === resultAngle && !currentImage
@@ -65,7 +68,7 @@ export default function ResultModal({
     setDragging(true)
     dragStartX.current = e.clientX
     dragStartAngle.current = resultAngle
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    containerRef.current?.setPointerCapture(e.pointerId)
   }
 
   function handlePointerMove(e: React.PointerEvent) {
@@ -76,13 +79,13 @@ export default function ResultModal({
     onAngleChange(newIndex)
   }
 
-  function handlePointerUp(e: React.PointerEvent) {
+  function handlePointerUp(_e: React.PointerEvent) {
     setDragging(false)
-    try { (e.target as HTMLElement).releasePointerCapture?.(e.pointerId) } catch {}
+    try { containerRef.current?.releasePointerCapture(_e.pointerId) } catch {}
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="relative bg-soft-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* 关闭按钮 */}
         <button
@@ -103,6 +106,7 @@ export default function ResultModal({
 
           {/* 图片区 */}
           <div
+            ref={containerRef}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -131,9 +135,20 @@ export default function ResultModal({
                 draggable={false}
               />
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                 <p className="text-xs text-warm-gray/40">此角度未生成</p>
-                <p className="text-[10px] text-warm-gray/30">拖拽切换或等待自动生成</p>
+                {onGenerateAngle && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onGenerateAngle(resultAngle)
+                    }}
+                    className="px-4 py-2 rounded-full bg-rose text-white text-xs font-medium
+                               active:scale-95 transition-transform shadow-sm"
+                  >
+                    生成此角度
+                  </button>
+                )}
               </div>
             )}
           </div>

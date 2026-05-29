@@ -698,6 +698,11 @@ function DressingContent() {
         onAngleChange={(i) => {
           setResultAngle(i)
         }}
+        onGenerateAngle={(i) => {
+          setResultAngle(i)
+          setShowResult(true)
+          generateForAngle(i)
+        }}
         onClose={() => { setShowResult(false); setGeneratingAngle(null); setReviewData(null) }}
         reviewData={reviewData}
         reviewLoading={reviewLoading}
