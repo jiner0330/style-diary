@@ -1,15 +1,12 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
-import { useDroppable } from "@dnd-kit/core"
 
-// 8 角度人台序列
 const ROTATION_ANGLES = ["000", "045", "180"] as const
 const TOTAL_FRAMES = ROTATION_ANGLES.length
 
-// 身体标记点 · 6 个品类
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
   outerwear:  { top: "32%", left: "50%", label: "外" },
@@ -31,55 +28,103 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
   const filledCount = (["dress","top","bottom","outerwear","shoes","bag"] as const)
     .filter((s) => !!outfit[s]).length + outfit.accessories.length
 
-  const { setNodeRef, isOver } = useDroppable({ id: "model-drop" })
-
-  // ---- 360° 旋转（支持受控/非受控） ----
   const [internalIndex, setInternalIndex] = useState(0)
   const angleIndex = controlledIndex ?? internalIndex
   const setAngleIndex = (i: number) => {
     setInternalIndex(i)
     onAngleChange?.(i)
   }
+
   const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState(0)
   const dragStartX = useRef(0)
   const dragStartIndex = useRef(0)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const rafRef = useRef(0)
 
-  const mannequinSrc = gender === "female"
-    ? `/mannequin-female-${ROTATION_ANGLES[angleIndex]}.png`
-    : "/mannequin-male.png"
+  // 预加载图片
+  const [imagesLoaded, setImagesLoaded] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (gender !== "female") return
+    ROTATION_ANGLES.forEach((angle) => {
+      const img = new Image()
+      img.src = `/mannequin-female-${angle}.png?v=2`
+      img.onload = () => setImagesLoaded((prev) => new Set(prev).add(angle))
+    })
+  }, [gender])
 
-  const setNodeRefWrapped = useCallback((node: HTMLDivElement | null) => {
-    setNodeRef(node)
-    containerRef.current = node
-  }, [setNodeRef])
+  function startDrag(clientX: number) {
+    setIsDragging(true)
+    dragStartX.current = clientX
+    dragStartIndex.current = angleIndex
+    setDragOffset(0)
+  }
+
+  function moveDrag(clientX: number) {
+    if (!isDragging) return
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      const dx = clientX - dragStartX.current
+      setDragOffset(dx)
+      const steps = Math.round(dx / 15)
+      const newIndex = ((dragStartIndex.current - steps) % TOTAL_FRAMES + TOTAL_FRAMES) % TOTAL_FRAMES
+      setAngleIndex(newIndex)
+    })
+  }
+
+  function endDrag() {
+    setIsDragging(false)
+    cancelAnimationFrame(rafRef.current)
+    setDragOffset(0)
+  }
+
+  useEffect(() => {
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [])
+
+  function isMarkerTarget(el: EventTarget | null): boolean {
+    return !!(el as HTMLElement)?.closest?.("[data-marker]")
+  }
 
   function handlePointerDown(e: React.PointerEvent) {
-    // 只在人台容器上触发（排除标记点等子元素）
-    if (e.target === containerRef.current || (e.target as HTMLElement).closest(".mannequin-bg")) {
-      e.preventDefault()
-      setIsDragging(true)
-      dragStartX.current = e.clientX
-      dragStartIndex.current = angleIndex
-      ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-    }
+    if (isMarkerTarget(e.target)) return
+    e.preventDefault()
+    startDrag(e.clientX)
+    containerRef.current?.setPointerCapture(e.pointerId)
   }
 
   function handlePointerMove(e: React.PointerEvent) {
-    if (!isDragging) return
-    const dx = e.clientX - dragStartX.current
-    // 每 30px 水平移动切换一个角度
-    const steps = Math.round(dx / 30)
-    const newIndex = ((dragStartIndex.current - steps) % TOTAL_FRAMES + TOTAL_FRAMES) % TOTAL_FRAMES
-    setAngleIndex(newIndex)
+    moveDrag(e.clientX)
   }
 
   function handlePointerUp(e: React.PointerEvent) {
-    setIsDragging(false)
-    try { (e.target as HTMLElement).releasePointerCapture?.(e.pointerId) } catch {}
+    endDrag()
+    try { containerRef.current?.releasePointerCapture(e.pointerId) } catch {}
   }
 
-  // ---- 标记点逻辑 ----
+  function handleTouchStart(e: React.TouchEvent) {
+    if (isMarkerTarget(e.target)) return
+    const touch = e.touches[0]
+    if (!touch) return
+    e.preventDefault()
+    startDrag(touch.clientX)
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    const touch = e.touches[0]
+    if (!touch) return
+    moveDrag(touch.clientX)
+  }
+
+  function handleTouchEnd() {
+    endDrag()
+  }
+
+  const mannequinSrc = gender === "female"
+    ? `/mannequin-female-${ROTATION_ANGLES[angleIndex]}.png?v=2`
+    : "/mannequin-male.png?v=2"
+
+  // 标记点
   const rawMarkers = Object.entries(SLOT_MARKERS).map(([slot, pos]) => {
     let itemId: string | undefined
     if (slot === "accessories") {
@@ -119,28 +164,41 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
           : `拖拽单品到人台 ✦ ${gender === "female" ? "水平拖拽人台可旋转" : ""}`}
       </p>
 
-      {/* 人台容器 */}
       <div
-        ref={setNodeRefWrapped}
+        ref={containerRef}
         onPointerDown={gender === "female" ? handlePointerDown : undefined}
         onPointerMove={gender === "female" ? handlePointerMove : undefined}
         onPointerUp={gender === "female" ? handlePointerUp : undefined}
         onPointerLeave={gender === "female" ? handlePointerUp : undefined}
-        className={`relative w-full max-w-[180px] md:max-w-[420px] rounded-3xl transition-[box-shadow,transform] duration-500
-          overflow-hidden
-          ${isOver
-            ? "ring-3 ring-rose/40 scale-[1.02]"
-            : ""}
-          ${isDragging ? "cursor-grabbing" : gender === "female" ? "cursor-ew-resize" : ""}`}
+        onTouchStart={gender === "female" ? handleTouchStart : undefined}
+        onTouchMove={gender === "female" ? handleTouchMove : undefined}
+        onTouchEnd={gender === "female" ? handleTouchEnd : undefined}
+        className={`relative w-full max-w-[220px] md:max-w-[420px] rounded-3xl transition-[box-shadow,transform] duration-500
+          overflow-hidden select-none
+          ${isDragging ? "cursor-grabbing shadow-lg" : gender === "female" ? "cursor-ew-resize" : ""}`}
         style={{ aspectRatio: "4/7", touchAction: "none" }}
       >
-        {/* 人台底图 */}
+        {/* 预加载所有角度图片（隐藏） */}
+        {gender === "female" && ROTATION_ANGLES.map((angle) => (
+          <img
+            key={`preload-${angle}`}
+            src={`/mannequin-female-${angle}.png?v=2`}
+            alt=""
+            className="hidden"
+            draggable={false}
+          />
+        ))}
+
+        {/* 人台底图 — opacity 过渡 */}
         <div className="mannequin-bg absolute inset-0 flex items-center justify-center rounded-3xl">
           <img
             src={mannequinSrc}
             alt={gender === "female" ? `人台 ${ROTATION_ANGLES[angleIndex]}°` : "男生人台"}
-            className="w-full h-full object-contain select-none pointer-events-none"
+            className="w-full h-full object-contain select-none pointer-events-none transition-opacity duration-150"
             draggable={false}
+            style={{
+              opacity: gender === "female" && !imagesLoaded.has(ROTATION_ANGLES[angleIndex]) ? 0.6 : 1,
+            }}
           />
         </div>
 
@@ -148,6 +206,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         {merged.map((m) => (
           <div
             key={m.slot}
+            data-marker="true"
             className="absolute z-10 pointer-events-none flex flex-col items-center transition-[width,height,opacity] duration-300"
             style={{ top: m.top, left: m.left, transform: "translate(-50%, -50%)" }}
           >
@@ -186,13 +245,11 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
           </div>
         )}
 
-        {/* 拖拽悬停提示 */}
-        {isOver && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center
-                          rounded-3xl bg-rose/5 backdrop-blur-[2px]">
-            <span className="text-rose/70 font-medium text-sm tracking-wider animate-pulse">
-              ✦ 松开放置 ✦
-            </span>
+        {/* 拖拽视觉反馈 */}
+        {isDragging && Math.abs(dragOffset) > 0 && (
+          <div className="absolute inset-y-0 w-1/2 flex items-center pointer-events-none"
+               style={{ left: dragOffset > 0 ? 0 : "auto", right: dragOffset < 0 ? 0 : "auto" }}>
+            <div className={`w-full h-full ${dragOffset > 0 ? "bg-gradient-to-r" : "bg-gradient-to-l"} from-rose/5 to-transparent transition-opacity duration-75`} />
           </div>
         )}
       </div>

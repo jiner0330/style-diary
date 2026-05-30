@@ -238,7 +238,7 @@ function DressingContent() {
             prompt: data.prompt || "",
             mode: data.mode || "unknown",
           })
-          if (!skipReviewRef.current && !generatedByAI.current && !reviewLoading) evaluateOutfit()
+          if (!skipReviewRef.current && !generatedByAI.current && !reviewLoading && !reviewData) evaluateOutfit()
         } else if (data.status === "error") {
           setGenStatus("error")
           setGenError(data.error || "生成失败")
@@ -272,7 +272,6 @@ function DressingContent() {
     setGenError(null)
     setGeneratingAngle(angleIdx)
     setResultAngle(angleIdx)
-    setReviewData(null)
 
     try {
       const res = await fetch("/api/generate-outfit", {
@@ -700,6 +699,8 @@ function DressingContent() {
         onGenerateAngle={(i) => {
           setResultAngle(i)
           setShowResult(true)
+          // 并行启动评价（如果尚未评价且不在评价中）
+          if (!reviewData && !reviewLoading) evaluateOutfit()
           generateForAngle(i)
         }}
         onClose={() => { setShowResult(false); setGeneratingAngle(null); setReviewData(null) }}
