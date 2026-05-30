@@ -42,7 +42,7 @@ function DressingContent() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [angleIndex, setAngleIndex] = useState(0)
   const [generatingAngle, setGeneratingAngle] = useState<number | null>(null)
-  const [genStatus, setGenStatus] = useState<"generating" | "done" | "error" | null>(null)
+  const [genStatus, setGenStatus] = useState<"idle" | "generating" | "done" | "error" | null>(null)
   const [genTaskId, setGenTaskId] = useState<number | null>(null)
   const [genError, setGenError] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)

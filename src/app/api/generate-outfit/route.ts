@@ -169,7 +169,7 @@ const DETAIL_TRANSLATE: Record<string, string> = {
   "蝴蝶结飘带": "ribbon bow tie", "蝴蝶结": "bow detail", "喇叭袖": "bell sleeve", "细吊带": "thin spaghetti strap", "吊带": "spaghetti strap", "小玫瑰": "small rose", "玫瑰": "rose", "花卉": "floral", "亮面": "glossy finish", "飘带": "ribbon tie", "透感": "sheer translucency", "小飞袖": "small flutter sleeve", "飞袖": "flutter sleeve",
   "蝴蝶结系带": "bow tie ribbon", "大摆": "wide flared", "端庄": "elegant and poised", "A字": "A-line", "拼接线": "panel seam line", "拼接": "panel seam",
   "三分之一": "one-third", "处": "point",
-  "设计": "design", "自然": "natural", "较": "slightly", "哑光": "matte", "素色": "solid color", "领口": "neckline", "装饰": "decoration", "优雅": "elegant", "整体": "overall", "裙摆": "hemline",
+  "设计": "design", "自然": "natural", "较": "slightly", "哑光": "matte", "素色": "solid color", "领口": "neckline", "装饰": "decoration", "优雅": "elegant", "整体": "overall",
   "较有": "slightly", "微收": "slightly gathered", "慵懒": "slouchy",
   "膝上": "above the knee", "至膝上": "to above the knee", "脚踝": "the ankle", "缎面": "satin finish", "光泽": "luminous sheen",
   "小立领": "small mandarin stand collar", "立领": "mandarin stand collar", "斜襟": "diagonal front placket", "盘扣": "knotted frog button", "省道": "tailored dart", "开衩": "side slit", "旗袍": "qipao cheongsam silhouette", "印花": "print design", "素雅": "subtle and refined", "暗纹": "subtle tonal pattern", "方领设计": "square neckline design",
