@@ -641,7 +641,6 @@ function DressingContent() {
                 onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
                 onWearSet={(items) => {
                   wearSet(items)
-                  setMobileTab(null)
                 }}
                 userCoords={userCoords}
                 gender={userGender}
