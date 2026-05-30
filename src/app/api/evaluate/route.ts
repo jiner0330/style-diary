@@ -112,7 +112,9 @@ export async function POST(request: NextRequest) {
       messages: [
         { role: "user", content: prompt },
       ],
-      maxTokens: 600,
+      model: "deepseek-chat",
+      maxTokens: 1024,
+      temperature: 0.8,
     })
 
     // 解析 JSON（可能包裹在 markdown 代码块中）
@@ -122,7 +124,24 @@ export async function POST(request: NextRequest) {
       json = codeBlockMatch[1].trim()
     }
 
-    const review = JSON.parse(json)
+    // 尝试修复未闭合的字符串（被截断的情况）
+    // 找到最后一个完整的 "key": "value" 对，截断到那里
+    let review: any
+    try {
+      review = JSON.parse(json)
+    } catch {
+      // 如果 JSON 不完整，尝试找到最后一个完整的属性并补全
+      const lastComplete = json.lastIndexOf('}",')
+      if (lastComplete > 0) {
+        try {
+          review = JSON.parse(json.slice(0, lastComplete + 2) + "}")
+        } catch {
+          throw new SyntaxError("AI 返回的 JSON 不完整")
+        }
+      } else {
+        throw new SyntaxError("AI 返回的 JSON 不完整")
+      }
+    }
 
     // 校验字段
     if (

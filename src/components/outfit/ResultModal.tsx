@@ -63,25 +63,50 @@ export default function ResultModal({
   const isGenerating = generatingAngle !== null && generatingAngle === resultAngle && !currentImage
   const generatedCount = resultImages.size
 
-  function handlePointerDown(e: React.PointerEvent) {
-    e.preventDefault()
+  function startDrag(clientX: number) {
     setDragging(true)
-    dragStartX.current = e.clientX
+    dragStartX.current = clientX
     dragStartAngle.current = resultAngle
-    containerRef.current?.setPointerCapture(e.pointerId)
   }
 
-  function handlePointerMove(e: React.PointerEvent) {
+  function moveDrag(clientX: number) {
     if (!dragging) return
-    const dx = e.clientX - dragStartX.current
-    const steps = Math.round(dx / 40)
+    const dx = clientX - dragStartX.current
+    const steps = Math.round(dx / 50)
     const newIndex = ((dragStartAngle.current - steps) % 3 + 3) % 3
     onAngleChange(newIndex)
   }
 
-  function handlePointerUp(_e: React.PointerEvent) {
+  function endDrag() {
     setDragging(false)
-    try { containerRef.current?.releasePointerCapture(_e.pointerId) } catch {}
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    e.preventDefault()
+    startDrag(e.clientX)
+    containerRef.current?.setPointerCapture(e.pointerId)
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    moveDrag(e.clientX)
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    endDrag()
+    try { containerRef.current?.releasePointerCapture(e.pointerId) } catch {}
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const touch = e.touches[0]
+    if (!touch) return
+    e.preventDefault()
+    startDrag(touch.clientX)
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    const touch = e.touches[0]
+    if (!touch) return
+    moveDrag(touch.clientX)
   }
 
   return (
@@ -101,7 +126,7 @@ export default function ResultModal({
             穿搭效果图
           </h3>
           <p className="text-[11px] text-warm-gray/50 text-center mb-4">
-            {ANGLE_LABELS[resultAngle]}视角 · 水平拖拽旋转 · 已生成 {generatedCount}/3 角度
+            {ANGLE_LABELS[resultAngle]}视角 · 图片上左右滑动旋转 · 已生成 {generatedCount}/3 角度
           </p>
 
           {/* 图片区 */}
@@ -111,7 +136,10 @@ export default function ResultModal({
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
-            className={`relative w-full max-w-[240px] sm:max-w-full mx-auto rounded-2xl overflow-hidden
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={endDrag}
+            className={`relative w-full max-w-[280px] sm:max-w-sm mx-auto rounded-2xl overflow-hidden
               ${dragging ? "cursor-grabbing" : "cursor-ew-resize"}`}
             style={{ aspectRatio: "4/7", touchAction: "none" }}
           >

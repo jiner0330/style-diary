@@ -160,8 +160,8 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     <div className="flex flex-col items-center w-full py-4 md:py-6 md:pb-6">
       <p className="text-[11px] text-warm-gray/60 mb-3 tracking-wide">
         {filledCount > 0
-          ? `已搭配 ${filledCount} 件 ✦ ${gender === "female" ? "拖拽旋转 · " : ""}继续拖拽或点击下方卡片替换`
-          : `拖拽单品到人台 ✦ ${gender === "female" ? "水平拖拽人台可旋转" : ""}`}
+          ? `已搭配 ${filledCount} 件 ✦ ${gender === "female" ? "左右滑动旋转 · " : ""}继续拖拽或点击下方卡片替换`
+          : `拖拽单品到人台 ✦ ${gender === "female" ? "在人台上左右滑动可旋转" : ""}`}
       </p>
 
       <div
