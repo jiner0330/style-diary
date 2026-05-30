@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
 
 const ROTATION_ANGLES = ["000", "045", "180"] as const
 const TOTAL_FRAMES = ROTATION_ANGLES.length
+const SWIPE_THRESHOLD = 60  // px — drag must exceed this to switch angle
+const MAX_VISUAL_SHIFT = 80 // px — max translateX during drag
 
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
@@ -36,9 +38,10 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
   }
 
   const [isDragging, setIsDragging] = useState(false)
-  const [dragOffset, setDragOffset] = useState(0)
+  const [visualShift, setVisualShift] = useState(0) // translateX for image follow
   const dragStartX = useRef(0)
   const dragStartIndex = useRef(0)
+  const currentDx = useRef(0) // actual dx for angle decision on release
   const containerRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef(0)
 
@@ -57,7 +60,8 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     setIsDragging(true)
     dragStartX.current = clientX
     dragStartIndex.current = angleIndex
-    setDragOffset(0)
+    currentDx.current = 0
+    setVisualShift(0)
   }
 
   function moveDrag(clientX: number) {
@@ -65,17 +69,25 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     cancelAnimationFrame(rafRef.current)
     rafRef.current = requestAnimationFrame(() => {
       const dx = clientX - dragStartX.current
-      setDragOffset(dx)
-      const steps = Math.round(dx / 15)
-      const newIndex = ((dragStartIndex.current - steps) % TOTAL_FRAMES + TOTAL_FRAMES) % TOTAL_FRAMES
-      setAngleIndex(newIndex)
+      currentDx.current = dx
+      // Clamp visual shift for translateX
+      const clamped = Math.max(-MAX_VISUAL_SHIFT, Math.min(MAX_VISUAL_SHIFT, dx))
+      setVisualShift(clamped)
     })
   }
 
   function endDrag() {
     setIsDragging(false)
     cancelAnimationFrame(rafRef.current)
-    setDragOffset(0)
+
+    const dx = currentDx.current
+    if (Math.abs(dx) > SWIPE_THRESHOLD) {
+      const direction = dx > 0 ? -1 : 1
+      const newIndex = ((dragStartIndex.current + direction) % TOTAL_FRAMES + TOTAL_FRAMES) % TOTAL_FRAMES
+      setAngleIndex(newIndex)
+    }
+    currentDx.current = 0
+    setVisualShift(0)
   }
 
   useEffect(() => {
@@ -173,7 +185,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         onTouchStart={gender === "female" ? handleTouchStart : undefined}
         onTouchMove={gender === "female" ? handleTouchMove : undefined}
         onTouchEnd={gender === "female" ? handleTouchEnd : undefined}
-        className={`relative w-full max-w-[220px] md:max-w-[420px] rounded-3xl transition-[box-shadow,transform] duration-500
+        className={`relative w-full max-w-[220px] md:max-w-[420px] rounded-3xl transition-[box-shadow] duration-500
           overflow-hidden select-none
           ${isDragging ? "cursor-grabbing shadow-lg" : gender === "female" ? "cursor-ew-resize" : ""}`}
         style={{ aspectRatio: "4/7", touchAction: "none" }}
@@ -189,8 +201,14 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
           />
         ))}
 
-        {/* 人台底图 — opacity 过渡 */}
-        <div className="mannequin-bg absolute inset-0 flex items-center justify-center rounded-3xl">
+        {/* 人台底图 — translateX 跟手 + 松手回弹 */}
+        <div
+          className="mannequin-bg absolute inset-0 flex items-center justify-center rounded-3xl"
+          style={{
+            transform: `translateX(${visualShift}px)`,
+            transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1.2)",
+          }}
+        >
           <img
             src={mannequinSrc}
             alt={gender === "female" ? `人台 ${ROTATION_ANGLES[angleIndex]}°` : "男生人台"}
@@ -245,11 +263,19 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
           </div>
         )}
 
-        {/* 拖拽视觉反馈 */}
-        {isDragging && Math.abs(dragOffset) > 0 && (
+        {/* 拖拽方向箭头提示 */}
+        {isDragging && Math.abs(visualShift) > 5 && (
           <div className="absolute inset-y-0 w-1/2 flex items-center pointer-events-none"
-               style={{ left: dragOffset > 0 ? 0 : "auto", right: dragOffset < 0 ? 0 : "auto" }}>
-            <div className={`w-full h-full ${dragOffset > 0 ? "bg-gradient-to-r" : "bg-gradient-to-l"} from-rose/5 to-transparent transition-opacity duration-75`} />
+               style={{ left: visualShift > 0 ? 0 : "auto", right: visualShift < 0 ? 0 : "auto" }}>
+            <div className={`w-full h-full ${visualShift > 0 ? "bg-gradient-to-r" : "bg-gradient-to-l"} from-rose/5 to-transparent`} />
+          </div>
+        )}
+
+        {/* 即将切换的阈值提示 */}
+        {isDragging && Math.abs(currentDx.current) > SWIPE_THRESHOLD * 0.7 && Math.abs(currentDx.current) < SWIPE_THRESHOLD && (
+          <div className="absolute inset-y-0 flex items-center pointer-events-none"
+               style={{ left: currentDx.current > 0 ? 0 : "auto", right: currentDx.current < 0 ? 0 : "auto" }}>
+            <div className={`h-full w-1 ${currentDx.current > 0 ? "bg-gradient-to-r" : "bg-gradient-to-l"} from-rose/20 to-transparent`} />
           </div>
         )}
       </div>

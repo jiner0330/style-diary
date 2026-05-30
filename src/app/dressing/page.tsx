@@ -42,6 +42,7 @@ function DressingContent() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [angleIndex, setAngleIndex] = useState(0)
   const [generatingAngle, setGeneratingAngle] = useState<number | null>(null)
+  const generatingAngleRef = useRef<number | null>(null)
   const [genStatus, setGenStatus] = useState<"idle" | "generating" | "done" | "error" | null>(null)
   const [genTaskId, setGenTaskId] = useState<number | null>(null)
   const [genError, setGenError] = useState<string | null>(null)
@@ -67,6 +68,8 @@ function DressingContent() {
     setResultImages(new Map())
     setGenTaskId(null)
     setGenStatus("idle")
+    setGeneratingAngle(null)
+    generatingAngleRef.current = null
     setReviewData(null)
     generatedByAI.current = false
   }, [outfit])
@@ -225,7 +228,8 @@ function DressingContent() {
         if (!res.ok) throw new Error(data.error || "查询失败")
 
         if (data.status === "done") {
-          const angleIdx = generatingAngle ?? 0
+          const angleIdx = generatingAngleRef.current ?? 0
+          generatingAngleRef.current = null
           setGenStatus("done")
           setGeneratingAngle(null)
           setResultImages((prev) => {
@@ -271,6 +275,7 @@ function DressingContent() {
     setGenStatus("generating")
     setGenError(null)
     setGeneratingAngle(angleIdx)
+    generatingAngleRef.current = angleIdx
     setResultAngle(angleIdx)
 
     try {
@@ -286,7 +291,9 @@ function DressingContent() {
 
       if (data.status === "done") {
         // 缓存命中，直接完成
+        generatingAngleRef.current = null
         setGenStatus("done")
+        setGeneratingAngle(null)
         setResultImages((prev) => {
           const next = new Map(prev)
           next.set(angleIdx, { url: data.imageUrl, prompt: data.prompt || "", promptZh: data.promptZh, mode: data.mode || "text_only" })
@@ -702,7 +709,7 @@ function DressingContent() {
           if (!reviewData && !reviewLoading) evaluateOutfit()
           generateForAngle(i)
         }}
-        onClose={() => { setShowResult(false); setGeneratingAngle(null); setReviewData(null) }}
+        onClose={() => { setShowResult(false); setReviewData(null) }}
         reviewData={reviewData}
         reviewLoading={reviewLoading}
         onSave={() => {
