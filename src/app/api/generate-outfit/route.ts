@@ -524,7 +524,7 @@ async function runGeneration(seed: number, items: OutfitItem[], angleIndex: numb
 
       const taskData: TaskData = {
         status: "done",
-        imageUrl: `/outputs/outfit-${seed}.png`,
+        imageUrl: `/api/outputs/${seed}`,
         prompt,
         promptZh,
       }
@@ -580,7 +580,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         taskId: seed,
         status: "done",
-        imageUrl: `/outputs/outfit-${seed}.png`,
+        imageUrl: `/api/outputs/${seed}`,
         prompt,
         promptZh,
         mode: "text_only",
@@ -653,7 +653,7 @@ export async function GET(request: Request) {
       return NextResponse.json({
         taskId: seed,
         status: "done",
-        imageUrl: taskInfo?.imageUrl || `/outputs/outfit-${seed}.png`,
+        imageUrl: taskInfo?.imageUrl || `/api/outputs/${seed}`,
         prompt: taskInfo?.prompt || "",
         promptZh: taskInfo?.promptZh || "",
         mode: "text_only",
