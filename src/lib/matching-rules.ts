@@ -9,7 +9,7 @@ import {
   getStats,
   type RuleQuery, type FormulaQuery, type HackQuery, type BodyDetailQuery,
   type Scene, type BodyShape, type Season,
-} from "@/lib/rules"
+} from "@/lib/style-rules"
 
 export function getCurrentSeason(): string {
   const month = new Date().getMonth()
