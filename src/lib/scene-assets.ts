@@ -11,31 +11,31 @@ interface SceneAsset {
 const SCENE_ASSETS: Record<string, SceneAsset> = {
   "周末 brunch": {
     illustration_url: "/scenes/weekend-brunch.png",
-    ambient_sound_url: "/scenes/weekend-brunch.mp3",
+    ambient_sound_url: "/scenes/weekend-brunch.m4a",
   },
   "书店咖啡馆独处": {
     illustration_url: "/scenes/bookstore-cafe.png",
-    ambient_sound_url: "/scenes/bookstore-cafe.mp3",
+    ambient_sound_url: "/scenes/bookstore-cafe.m4a",
   },
   "重要汇报日": {
     illustration_url: "/scenes/presentation-day.png",
-    ambient_sound_url: "/scenes/presentation-day.mp3",
+    ambient_sound_url: "/scenes/presentation-day.m4a",
   },
   "第一次约会": {
     illustration_url: "/scenes/first-date.png",
-    ambient_sound_url: "/scenes/first-date.mp3",
+    ambient_sound_url: "/scenes/first-date.m4a",
   },
   "一个人看展": {
     illustration_url: "/scenes/solo-exhibition.png",
-    ambient_sound_url: "/scenes/solo-exhibition.mp3",
+    ambient_sound_url: "/scenes/solo-exhibition.m4a",
   },
   "三天海边旅行": {
     illustration_url: "/scenes/beach-trip.png",
-    ambient_sound_url: "/scenes/beach-trip.mp3",
+    ambient_sound_url: "/scenes/beach-trip.m4a",
   },
   "前任会出现的聚会": {
     illustration_url: "/scenes/ex-party.png",
-    ambient_sound_url: "/scenes/ex-party.mp3",
+    ambient_sound_url: "/scenes/ex-party.m4a",
   },
 }
 
