@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { writeFile, mkdir, stat, readFile } from "fs/promises"
+import https from "https"
 import path from "path"
-
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+import { requireAuth } from "@/lib/auth"
 
 const OFOXAI_KEY = process.env.OFOXAI_API_KEY!
 const OFOXAI_BASE = process.env.OFOXAI_BASE_URL || "https://api.ofox.ai"
@@ -105,6 +105,9 @@ function describeColor(hex: string): string {
     "#7B9CB5": "denim blue", "#3A5A3A": "forest green", "#5C3A2A": "dark brown",
     "#8B2252": "burgundy red", "#E8B4B8": "pink", "#E8C4C9": "misty pink", "#C1D8C3": "fresh green", "#F5E68C": "lemon yellow", "#E8D8A0": "butter yellow",
     "#DDA040": "mustard yellow", "#1A2A4A": "navy", "#F5F0D0": "pale yellow",
+    "#E8C8B0": "nude", "#C4886A": "warm terracotta", "#F5F0E8": "cream white",
+    "#8A8A8A": "gray", "#4A6B8A": "indigo blue", "#8A7A5A": "olive khaki",
+    "#D4C8B8": "warm beige", "#D4D4D4": "silver", "#D4B060": "gold", "#D4A8A0": "rose gold",
   }
   return map[hex] || hex
 }
@@ -120,6 +123,7 @@ const MATERIAL_TEXTURE: Record<string, string> = {
   "牛仔": "denim fabric, twill weave",
   "针织": "knit fabric, soft and stretchy",
   "羊毛": "wool fabric, fuzzy surface",
+  "羊毛混纺": "wool blend fabric, crisp structured texture",
   "羊绒": "cashmere fabric, fine soft texture",
   "皮革": "leather fabric",
   "蕾丝": "lace fabric",
@@ -130,18 +134,29 @@ const MATERIAL_TEXTURE: Record<string, string> = {
   "帆布": "canvas fabric, durable and textured",
   "棉+氨纶": "cotton-spandex blend fabric, clean finish with stretch",
   "氨纶": "spandex fabric, stretchy and form-fitting",
+  "薄纱": "sheer gauze fabric, lightweight and translucent",
+  "混纺": "blended fabric, smooth drape",
+  "缎面": "satin fabric, subtle luster and smooth drape",
+  "醋酸": "acetate fabric, silky drape with matte finish",
+  "金属": "metal, polished metallic finish",
+  "珍珠": "pearl, smooth lustrous surface",
+  "塑料": "plastic, glossy or matte finish",
+  "麂皮": "suede fabric, soft napped surface",
 }
 
 // Translate common Chinese fashion detail terms to English
 const DETAIL_TRANSLATE: Record<string, string> = {
   // Necklines
   "方领": "square neckline", "V领": "V-neckline", "圆领": "round neckline",
-  "高领": "high neckline", "一字肩": "off-shoulder", "露肩": "bare shoulder",
+  "高领": "high neckline", "一字肩": "off-shoulder", "一字领": "off-shoulder neckline",
+  "露肩": "bare shoulder",
   "挂脖": "halter neck", "小圆领": "small round neckline", "大圆领": "wide round neckline",
+  "娃娃领": "peter pan collar",
   // Sleeves
   "泡泡袖": "puff sleeve", "灯笼袖": "lantern sleeve", "蝙蝠袖": "dolman sleeve",
   "短袖": "short-sleeve", "长袖": "long-sleeve", "无袖": "sleeveless",
-  "袖口": "cuff", "肩带": "shoulder strap",
+  "有袖": "with sleeve", "袖口": "cuff", "明线收口": "topstitched hem",
+  "收拢": "gathered into", "肩带": "shoulder strap",
   // Waist & fit
   "收腰": "waist-cinching", "不收腰": "relaxed waist", "高腰": "high-waisted",
   "短款": "cropped", "露腰": "waist-baring", "宽松": "relaxed fit",
@@ -152,25 +167,82 @@ const DETAIL_TRANSLATE: Record<string, string> = {
   "绑带": "tie closure", "系带": "drawstring tie", "交叉": "criss-cross",
   "拉链": "zipper", "隐形拉链": "invisible zipper", "门襟": "placket",
   "腰封": "waist belt", "口袋": "pocket", "多口袋": "multiple pockets",
-  "裤耳": "belt loops",
+  "裤耳": "belt loops", "后背拉链": "back zipper closure",
+  "平驳领": "notch lapel", "单排": "single-breasted", "装饰扣": "decorative button",
+  "翻盖": "flap", "后中开衩": "center back vent", "挺括": "crisp and structured",
+  "三粒": "three", "开合": "closure", "调节袢扣": "adjustable tab closure",
+  "丹宁": "denim", "磨白": "faded", "水洗": "washed",
+  "双排扣": "double-breasted", "肩章": "epaulette", "可拆卸": "detachable",
+  "同色系": "matching", "防泼水": "water-repellent", "大腿中部": "mid-thigh",
+  "拼色": "color-block", "按扣": "snap button", "撞色": "contrast color",
+  "袖身": "sleeve", "衣身": "body", "刺绣": "embroidered",
+  "字母": "letter", "徽章": "patch", "胸口": "chest",
+  "马衔扣": "horsebit hardware", "浅口": "low vamp", "鞋口": "shoe opening",
+  "包边": "bound edge", "平底": "flat sole", "鞋面": "shoe upper",
+  "皮面": "leather surface", "圆头": "round toe",
+  "系带设计": "lace-up design", "橡胶": "rubber", "鞋底": "sole",
+  "鞋头": "toe cap", "尖头": "pointed toe", "细跟": "stiletto heel",
+  "厘米": "cm", "高约": "approximately", "边缘": "edge",
+  "细腻": "fine", "纤薄": "slim", "脚背": "instep",
+  "一字带": "single strap", "搭扣": "buckle closure", "粗跟": "block heel",
+  "漆皮": "patent leather", "八孔系带": "eight-eyelet lace-up closure", "八孔": "eight-eyelet", "鞋帮": "shaft",
+  "脚踝以上": "above the ankle", "厚底": "chunky platform sole",
+  "防滑": "anti-slip", "齿纹": "tread pattern", "缝线": "stitching",
+  "麂皮": "suede", "生胶": "gum rubber", "鞋舌": "shoe tongue",
+  "品牌": "brand", "标贴": "logo patch", "银色": "silver",
+  "金属银色": "metallic silver", "敞口": "open-top",
+  "包身": "bag body", "方正": "structured rectangular",
+  "宽大": "spacious", "提手": "top carry handle",
+  "素面": "plain surface", "粒纹": "pebbled grain texture",
+  "牛皮": "cowhide leather", "边骨": "edge piping",
+  "链条": "chain", "盘绕": "draped",
+  "小巧": "compact", "羊皮": "lambskin",
+  "双C扣": "double C-logo clasp", "简洁": "clean minimal",
+  "竖长": "vertically elongated tall shape", "短提手": "short carry handle",
+  "厚实": "sturdy thick", "中央": "center",
+  "锁骨链": "collarbone chain", "链身": "chain body",
+  "单颗": "single", "小圆形": "small round",
+  "吊坠": "pendant", "抛光": "polished",
+  "圆润": "round smooth", "镶嵌": "set in", "耳针": "ear post",
+  "表面": "surface", "柔和": "soft", "反光": "reflective sheen",
+  "珍珠表面": "pearl surface", "金色": "gold", "猫眼型": "cat-eye shape",
+  "镜框": "frame", "深色": "dark tinted", "镜片": "lens",
+  "镜腿": "temple arms", "向外展开": "flaring outward",
+  "上缘": "upper rim", "猫眼": "cat-eye",
+  "细窄": "slim narrow", "带身": "belt strap",
+  "方扣": "square buckle", "小方扣": "small square buckle",
+  "尾端": "tail end", "收窄": "tapered",
+  "玫瑰金": "rose gold", "圆形": "round",
+  "表盘": "watch dial", "刻度": "hour markers",
+  "指针": "watch hands", "表带": "watch band",
+  "表冠": "crown", "右侧": "right side",
+  "方形": "square shape", "手工卷边": "hand-rolled edge",
+  "卷边": "rolled edge", "碎花": "small floral print",
+  "排列": "arranged", "丝绸": "silk fabric",
+  "图案": "pattern", "材质": "fabric material",
+  "光泽感": "luminous sheen",
   // Texture & shape
   "荷叶边": "ruffled trim", "蕾丝": "lace trim", "褶皱": "gathered ruched",
   "细褶": "fine pleating", "蓬松": "voluminous", "垂坠": "draped",
   "飘逸": "flowy", "轻盈": "lightweight", "廓形感": "structured shape",
   "廓形": "structured silhouette",
+  "虚压褶": "soft pressed pleats", "压褶": "pressed pleats", "竖向": "vertical",
   // Hem & legs
-  "裙摆": "hemline", "下摆": "hem", "散开": "flared",
+  "裙摆": "hemline", "裙身": "skirt body", "下摆": "hem", "散开": "flared",
   "微扩": "slightly flared", "阔腿": "wide-leg", "直筒": "straight-leg",
-  "卷边": "folded cuff", "宽边": "wide", "裤脚": "leg opening",
+  "宽边": "wide", "裤脚": "leg opening",
   // Structure
   "鱼骨": "structured boning", "骨": "boning", "后背": "back",
-  "内衬": "lining", "双肩": "shoulder",
+  "内衬": "lining", "双肩": "shoulder", "明线": "visible topstitching",
+  "纵向": "vertical", "分割": "segmented", "腹部": "abdomen",
+  "一侧": "one side", "两个": "two",
   // Modifiers
   "蝴蝶结飘带": "ribbon bow tie", "蝴蝶结": "bow detail", "喇叭袖": "bell sleeve", "细吊带": "thin spaghetti strap", "吊带": "spaghetti strap", "小玫瑰": "small rose", "玫瑰": "rose", "花卉": "floral", "亮面": "glossy finish", "飘带": "ribbon tie", "透感": "sheer translucency", "小飞袖": "small flutter sleeve", "飞袖": "flutter sleeve",
   "蝴蝶结系带": "bow tie ribbon", "大摆": "wide flared", "端庄": "elegant and poised", "A字": "A-line", "拼接线": "panel seam line", "拼接": "panel seam",
   "三分之一": "one-third", "处": "point",
   "设计": "design", "自然": "natural", "较": "slightly", "哑光": "matte", "素色": "solid color", "领口": "neckline", "装饰": "decoration", "优雅": "elegant", "整体": "overall",
   "较有": "slightly", "微收": "slightly gathered", "慵懒": "slouchy",
+  "带": "with", "呈": "appears as", "状": "form",
   "膝上": "above the knee", "至膝上": "to above the knee", "脚踝": "the ankle", "缎面": "satin finish", "光泽": "luminous sheen",
   "小立领": "small mandarin stand collar", "立领": "mandarin stand collar", "斜襟": "diagonal front placket", "盘扣": "knotted frog button", "省道": "tailored dart", "开衩": "side slit", "旗袍": "qipao cheongsam silhouette", "印花": "print design", "素雅": "subtle and refined", "暗纹": "subtle tonal pattern", "方领设计": "square neckline design",
   "不对称": "asymmetric", "斜肩": "one-shoulder", "露背": "backless", "波点": "polka dot", "开口": "opening", "两侧": "both sides", "垂落": "draping down", "均匀": "evenly", "分布": "distributed", "细微": "subtle", "纹理": "texture", "腰间": "waist", "侧边": "side", "肩部": "the shoulders", "横跨": "across", "背部": "back", "正面": "front", "大面积": "wide area", "深度": "depth", "适中": "moderate", "油画": "oil painting style", "质感": "texture", "晕染": "watercolor wash",
@@ -252,7 +324,7 @@ const SLOT_LABEL: Record<string, string> = {
 }
 
 // Style anchor shared across all angles
-const STYLE_HEADER = `A soft hand-drawn fashion illustration base figure, standing in a clear A-pose with arms held 30 degrees away from the body, gentle watercolor shading but with crisp clean outlining, cream paper texture background, pure white background behind the paper texture, cozy and healing vibe. Game asset.`
+const STYLE_HEADER = `A soft hand-drawn fashion illustration base figure, gentle watercolor shading but with crisp clean outlining, cream paper texture background, pure white background behind the paper texture, cozy and healing vibe. Game asset.`
 
 const FACE_DETAIL = `Illustration-style face with big round amber eyes, doll-like delicate features, calm gentle expression.`
 
@@ -261,21 +333,34 @@ const HAIR_DETAIL = `Muted golden brown hair with a matte finish, pulled into a 
 const SKIN_DETAIL = `Translucent fair skin with a creamy porcelain finish.`
 const BODY_DETAIL = `Slim build.`
 
+// ─── Male mannequin description ───
+const MALE_FACE_DETAIL = `Clean simple facial features with straight eyebrows, monolid eyes, thin lips, calm neutral expression, sharp jawline.`
+const MALE_HAIR_DETAIL = `Hong Kong-style side-parted hairstyle, hair smoothly swept to one side from a clean defined side part on the left, moderate volume and height on top with natural movement, neatly tapered sides gradually fading shorter, clean edges around the ears and neckline, jet black with a healthy subtle sheen, polished yet effortless look.`
+const MALE_SKIN_DETAIL = `Warm wheat-toned skin with a natural matte finish.`
+const MALE_BODY_DETAIL = `Broad straight shoulders, square chest, straight waist without taper, narrow firm hips, subtle muscle definition on limbs without bulk.`
+
 const MANNEQUIN_BY_ANGLE: Record<string, string> = {
-  front: `The figure is a young female mannequin, isolated full-body front view, perfectly symmetrical, facing camera directly. ${FACE_DETAIL} ${HAIR_DETAIL} ${SKIN_DETAIL} ${BODY_DETAIL}`,
-  three_quarter: `The figure is a young female mannequin, isolated full-body three-quarter front view, body turned approximately 45 degrees to the right. ${FACE_DETAIL} visible in three-quarter profile. ${HAIR_DETAIL} ${SKIN_DETAIL} ${BODY_DETAIL}`,
-  back: `The figure is a young female mannequin, isolated full-body back view from behind. ${HAIR_DETAIL} ${SKIN_DETAIL} visible on the neck, shoulders, and arms. ${BODY_DETAIL} No face visible.`,
+  front: `The figure is a young female mannequin, isolated full-body front view, standing in a symmetrical A-pose with arms held slightly away from the body, perfectly symmetrical, facing camera directly. ${FACE_DETAIL} ${HAIR_DETAIL} ${SKIN_DETAIL} ${BODY_DETAIL}`,
+  three_quarter: `The figure is a young female mannequin, isolated full-body three-quarter front view, standing with body and head turned approximately 45 degrees away from the camera to the right, NOT facing forward, arms resting naturally at her sides. Her face is seen in three-quarter profile — one amber eye fully visible, the other partially hidden by the nose bridge, delicate doll-like features shown at an angle. ${HAIR_DETAIL} ${SKIN_DETAIL} ${BODY_DETAIL}`,
+  back: `The figure is a young female mannequin, isolated full-body back view from behind, standing with arms resting naturally at her sides, facing away from the camera. ${HAIR_DETAIL} ${SKIN_DETAIL} visible on the neck, shoulders, and arms. ${BODY_DETAIL} No face visible.`,
 }
 
-// Map angle index (0-2) to the corresponding view
-// 0 = front (000), 1 = three-quarter (045), 2 = back (180)
-function getMannequinView(angleIndex: number): string {
-  if (angleIndex === 0) return MANNEQUIN_BY_ANGLE.front
-  if (angleIndex === 2) return MANNEQUIN_BY_ANGLE.back
-  return MANNEQUIN_BY_ANGLE.three_quarter
+const MANNEQUIN_MALE_BY_ANGLE: Record<string, string> = {
+  front: `The figure is a young male mannequin, isolated full-body front view, standing in a symmetrical A-pose with arms held slightly away from the body at about 30 degrees, perfectly symmetrical, facing camera directly. ${MALE_FACE_DETAIL} ${MALE_HAIR_DETAIL} ${MALE_SKIN_DETAIL} ${MALE_BODY_DETAIL}`,
+  three_quarter: `The figure is a young male mannequin, isolated full-body three-quarter front view, standing with body and head turned approximately 45 degrees away from the camera to the right, NOT facing forward, arms resting naturally at his sides. His face is seen in three-quarter profile — clean features with straight eyebrows, monolid eyes, sharp jawline shown at an angle. ${MALE_HAIR_DETAIL} ${MALE_SKIN_DETAIL} ${MALE_BODY_DETAIL}`,
+  back: `The figure is a young male mannequin, isolated full-body back view from behind, standing with arms resting naturally at his sides, facing away from the camera. ${MALE_HAIR_DETAIL} ${MALE_SKIN_DETAIL} visible on the neck, shoulders, and arms. ${MALE_BODY_DETAIL} No face visible.`,
 }
 
-function buildPrompt(items: OutfitItem[], angleIndex: number = 0): string {
+// Map angle index to the corresponding view
+// 0 = front (000), 2 = back (180). 1 (three-quarter 045) is no longer used.
+function getMannequinView(angleIndex: number, gender: "female" | "male"): string {
+  const map = gender === "female" ? MANNEQUIN_BY_ANGLE : MANNEQUIN_MALE_BY_ANGLE
+  if (angleIndex === 0) return map.front
+  if (angleIndex === 2) return map.back
+  return map.three_quarter
+}
+
+function buildPrompt(items: OutfitItem[], angleIndex: number = 0, gender: "female" | "male" = "female"): string {
   const mainSlots = ["dress", "top", "bottom", "outerwear", "shoes", "bag"] as const
 
   const clothingLines: string[] = []
@@ -299,21 +384,24 @@ function buildPrompt(items: OutfitItem[], angleIndex: number = 0): string {
   const hasDress = items.some((i) => i.slot === "dress")
   const hasShoes = items.some((i) => i.slot === "shoes")
 
+  const pronoun = gender === "female" ? "She" : "He"
+
   const lines = [
     STYLE_HEADER,
     "",
-    getMannequinView(angleIndex),
+    getMannequinView(angleIndex, gender),
     "",
-    "She is wearing:",
+    `${pronoun} is wearing:`,
     ...clothingLines,
     "",
     ...(hasAccessories
-      ? ["She is wearing these accessories:", ...accessoryLines, ""]
+      ? [`${pronoun} is wearing these accessories:`, ...accessoryLines, ""]
       : []),
     ...(!hasDress && !hasBottom ? ["No pants, shorts, or skirt — lower body remains bare."] : []),
     ...(!hasShoes ? ["No shoes — feet remain bare."] : []),
     "",
-    ...(!hasAccessories ? ["Strictly no accessories, no patterns, no bows, no ribbons, no extra design elements not listed above."] : []),
+    ...(!hasAccessories ? ["Strictly no additional accessories — no jewelry, sunglasses, scarves, watches, or extra decorative elements beyond what is described in the outfit above."] : []),
+    ...(angleIndex === 2 ? ["This is a BACK view — visible from behind only. The neckline, collar, front buttons, front pockets, front bows, ribbons, and any front-facing decoration must NOT be visible. Only show back silhouette, back details (back zipper, back vent, back yoke), hem, sleeves from behind, and hair."] : []),
   ]
 
   return lines.join("\n")
@@ -372,7 +460,7 @@ function describeColorZh(hex: string): string {
     "#D4A5A5": "粉棕色", "#E8DED1": "奶油色", "#6B8FA3": "蓝色",
     "#7B9CB5": "牛仔蓝", "#3A5A3A": "深绿色", "#5C3A2A": "深棕色",
     "#8B2252": "酒红色", "#E8B4B8": "粉色", "#E8C4C9": "雾粉色", "#C1D8C3": "清新绿", "#F5E68C": "檬黄色", "#E8D8A0": "鹅黄色",
-    "#DDA040": "姜黄色", "#1A2A4A": "藏青色", "#F5F0D0": "浅黄色",
+    "#DDA040": "姜黄色", "#1A2A4A": "藏青色", "#F5F0D0": "浅黄色", "#D4D4D4": "银色", "#D4B060": "金色", "#D4A8A0": "玫瑰金",
   }
   return map[hex] || hex
 }
@@ -427,13 +515,20 @@ const MANNEQUIN_BY_ANGLE_ZH: Record<string, string> = {
   back: `年轻女性人台模特，背面全身视图。${HAIR_DETAIL_ZH} ${SKIN_DETAIL_ZH} 可见于颈部、肩部和手臂。${BODY_DETAIL_ZH} 面部不可见。`,
 }
 
-function getMannequinViewZh(angleIndex: number): string {
-  if (angleIndex === 0) return MANNEQUIN_BY_ANGLE_ZH.front
-  if (angleIndex === 2) return MANNEQUIN_BY_ANGLE_ZH.back
-  return MANNEQUIN_BY_ANGLE_ZH.three_quarter
+const MANNEQUIN_MALE_BY_ANGLE_ZH: Record<string, string> = {
+  front: `年轻男性人台模特，正面全身视图，完全对称，正面朝向镜头。标准A字站姿，手臂与身体保持30度间隙。五官简洁清爽，眉毛平直，单眼皮，薄唇，下颌线清晰，中性沉稳表情。港式侧背发型，清晰偏分线将头发向一侧梳理，顶部蓬松有自然纹理和高度，两侧渐变推短利落干净，耳后和颈部边缘整洁，乌黑色健康微光。肩膀宽阔平直，胸廓方正，腰线直筒不内收，臀部窄而紧实，四肢有轻微肌肉线条但不夸张。暖调小麦色皮肤，自然哑光质感。`,
+  three_quarter: `年轻男性人台模特，四分之三前侧视图，身体向右转向约45度。可见四分之三侧脸轮廓，下颌线清晰。港式侧背发型，清晰偏分线将头发向一侧梳理，顶部蓬松有自然纹理和高度，两侧渐变推短利落干净，乌黑色健康微光。暖调小麦色皮肤。肩膀宽阔平直，胸廓方正，腰线直筒，臀部窄而紧实，四肢有轻微肌肉线条。`,
+  back: `年轻男性人台模特，背面全身视图。港式侧背发型，乌黑色健康微光，两侧渐变推短利落干净。暖调小麦色皮肤可见于颈部、肩部和手臂。肩膀宽阔平直，腰线直筒不内收，臀部窄而紧实，四肢有轻微肌肉线条。面部不可见。`,
 }
 
-function buildPromptZh(items: OutfitItem[], angleIndex: number = 0): string {
+function getMannequinViewZh(angleIndex: number, gender: "female" | "male"): string {
+  const map = gender === "female" ? MANNEQUIN_BY_ANGLE_ZH : MANNEQUIN_MALE_BY_ANGLE_ZH
+  if (angleIndex === 0) return map.front
+  if (angleIndex === 2) return map.back
+  return map.three_quarter
+}
+
+function buildPromptZh(items: OutfitItem[], angleIndex: number = 0, gender: "female" | "male" = "female"): string {
   const slots = ["dress", "top", "bottom", "outerwear", "shoes", "bag"] as const
 
   const clothingLines: string[] = []
@@ -451,7 +546,7 @@ function buildPromptZh(items: OutfitItem[], angleIndex: number = 0): string {
   const lines = [
     STYLE_HEADER_ZH,
     "",
-    getMannequinViewZh(angleIndex),
+    getMannequinViewZh(angleIndex, gender),
     "",
     "穿着搭配：",
     ...clothingLines,
@@ -500,7 +595,8 @@ async function runGeneration(seed: number, items: OutfitItem[], angleIndex: numb
           response_format: "b64_json",
         }),
         signal: ctrl.signal,
-      })
+        agent: new https.Agent({ rejectUnauthorized: false }),
+      } as any)
 
       if (!res.ok) {
         const errText = await res.text().catch(() => "")
@@ -549,25 +645,33 @@ async function runGeneration(seed: number, items: OutfitItem[], angleIndex: numb
 }
 
 // POST: 提交生图任务（异步）
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const userId = await requireAuth(request)
+  if (!userId) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 })
+  }
+
   try {
     if (!OFOXAI_KEY) {
       return NextResponse.json({ error: "Please set OFOXAI_API_KEY in .env.local" }, { status: 500 })
     }
 
     const body = await request.json()
-    const { items } = body as { gender?: string; items: OutfitItem[]; angleIndex?: number }
+    const { items, gender } = body as { gender?: string; items: OutfitItem[]; angleIndex?: number }
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "Please select at least one item" }, { status: 400 })
     }
 
     const angleIndex = body.angleIndex ?? 0
-    const prompt = buildPrompt(items, angleIndex)
-    const promptZh = buildPromptZh(items, angleIndex)
+    const safeGender = (gender === "male" ? "male" : "female") as "female" | "male"
+    const prompt = buildPrompt(items, angleIndex, safeGender)
+    const promptZh = buildPromptZh(items, angleIndex, safeGender)
 
-    const itemIds = items.map((i) => i.name).sort().join("|")
-    const seed = Array.from(itemIds + angleIndex).reduce((s, c) => ((s << 5) - s + c.charCodeAt(0)) | 0, 0)
+    const itemFingerprint = items
+      .map((i) => [i.name, i.color, i.material ?? "", i.sub_category ?? "", i.detail ?? "", i.pattern ?? "", i.length ?? ""].join("|"))
+      .sort().join("||")
+    const seed = Array.from(itemFingerprint + angleIndex).reduce((s, c) => ((s << 5) - s + c.charCodeAt(0)) | 0, 0)
 
     await ensureDir()
     const imgPath = imageFile(seed)
@@ -617,7 +721,7 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[generate-outfit] POST error:", err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal server error" },
+      { error: "生成失败，请稍后重试" },
       { status: 500 }
     )
   }
@@ -677,7 +781,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[generate-outfit] GET error:", err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal server error" },
+      { error: "查询失败，请稍后重试" },
       { status: 500 }
     )
   }

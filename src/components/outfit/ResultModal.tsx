@@ -1,9 +1,17 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import confetti from "canvas-confetti"
 
-const ANGLES = ["000", "045", "180"]
-const ANGLE_LABELS = ["正面", "3/4侧", "背面"]
+const ANGLES = ["000", "180"]
+const ANGLE_LABELS = ["正面", "背面"]
+const SWIPE_THRESHOLD = 30
+const MAX_VISUAL_SHIFT = 120
+
+// UI index → API angleIndex
+function toApiAngle(uiIndex: number): number {
+  return uiIndex === 0 ? 0 : 2
+}
 
 export interface ReviewData {
   totalScore: number
@@ -33,10 +41,13 @@ interface Props {
   generatingAngle: number | null
   genStage: "connecting" | "generating" | "processing"
   elapsed: number
-  onAngleChange: (index: number) => void
+  gender: "female" | "male"
+  shouldCelebrate: boolean
+  onCelebrated: () => void
+  onAngleChange: (uiIndex: number) => void
   onClose: () => void
   onSave?: () => void
-  onGenerateAngle?: (index: number) => void
+  onGenerateAngle?: (uiIndex: number) => void
   reviewData?: ReviewData | null
   reviewLoading?: boolean
 }
@@ -47,6 +58,9 @@ export default function ResultModal({
   generatingAngle,
   genStage,
   elapsed,
+  gender,
+  shouldCelebrate,
+  onCelebrated,
   onAngleChange,
   onClose,
   onSave,
@@ -55,31 +69,118 @@ export default function ResultModal({
   reviewLoading,
 }: Props) {
   const [dragging, setDragging] = useState(false)
+  const draggingRef = useRef(false)
+  const [visualShift, setVisualShift] = useState(0)
   const dragStartX = useRef(0)
   const dragStartAngle = useRef(0)
+  const currentDx = useRef(0)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const rafRef = useRef(0)
 
-  const currentImage = resultImages.get(resultAngle)
-  const isGenerating = generatingAngle !== null && generatingAngle === resultAngle && !currentImage
+  // Map API angleIndex → image; resultImages is keyed by API angleIndex (0 or 2)
+  const apiAngle = toApiAngle(resultAngle)
+  const currentImage = resultImages.get(apiAngle)
+  const isGenerating = generatingAngle !== null && generatingAngle === apiAngle && !currentImage
   const generatedCount = resultImages.size
+  const mannequinPrefix = gender === "female" ? "mannequin-female" : "mannequin-male"
+
+  // 预加载人台底图
+  const cacheVer = useRef(Date.now())
+  const [imagesLoaded, setImagesLoaded] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    ANGLES.forEach((angle) => {
+      const img = new Image()
+      img.src = `/${mannequinPrefix}-${angle}.png?v=${cacheVer.current}`
+      img.onload = () => setImagesLoaded((prev) => new Set(prev).add(angle))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gender])
+
+  const mannequinSrc = `/${mannequinPrefix}-${ANGLES[resultAngle]}.png?v=${cacheVer.current}`
+
+  // 评分庆祝动画 — 由父组件跟踪去重，同一轮生成只展示一次
+  const [celebration, setCelebration] = useState<"idle" | "showing" | "done">("idle")
+
+  const triggerCelebration = useCallback((score: number) => {
+    setCelebration("showing")
+
+    if (score >= 85) {
+      const end = Date.now() + 1500
+      const colors = ["#f472b6", "#fbbf24", "#a78bfa", "#34d399", "#60a5fa"]
+      ;(function frame() {
+        confetti({
+          particleCount: 3,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0, y: 0.6 },
+          colors,
+        })
+        confetti({
+          particleCount: 3,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1, y: 0.6 },
+          colors,
+        })
+        if (Date.now() < end) requestAnimationFrame(frame)
+      })()
+    }
+
+    setTimeout(() => setCelebration("done"), 2500)
+  }, [])
+
+  useEffect(() => {
+    if (
+      shouldCelebrate &&
+      reviewData &&
+      !reviewLoading &&
+      celebration === "idle" &&
+      currentImage
+    ) {
+      onCelebrated()
+      triggerCelebration(reviewData.totalScore)
+    }
+  }, [shouldCelebrate, reviewData, reviewLoading, celebration, triggerCelebration, currentImage, onCelebrated])
 
   function startDrag(clientX: number) {
+    draggingRef.current = true
     setDragging(true)
     dragStartX.current = clientX
     dragStartAngle.current = resultAngle
+    currentDx.current = 0
+    setVisualShift(0)
   }
 
   function moveDrag(clientX: number) {
-    if (!dragging) return
-    const dx = clientX - dragStartX.current
-    const steps = Math.round(dx / 50)
-    const newIndex = ((dragStartAngle.current - steps) % 3 + 3) % 3
-    onAngleChange(newIndex)
+    if (!draggingRef.current) return
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      const dx = clientX - dragStartX.current
+      currentDx.current = dx
+      const clamped = Math.max(-MAX_VISUAL_SHIFT, Math.min(MAX_VISUAL_SHIFT, dx))
+      setVisualShift(clamped)
+    })
   }
 
   function endDrag() {
+    if (!draggingRef.current) return
+    draggingRef.current = false
     setDragging(false)
+    cancelAnimationFrame(rafRef.current)
+
+    const dx = currentDx.current
+    if (Math.abs(dx) > SWIPE_THRESHOLD) {
+      const direction = dx > 0 ? -1 : 1
+      const newIndex = ((dragStartAngle.current + direction) % 2 + 2) % 2
+      onAngleChange(newIndex)
+    }
+    currentDx.current = 0
+    setVisualShift(0)
   }
+
+  useEffect(() => {
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [])
 
   function handlePointerDown(e: React.PointerEvent) {
     e.preventDefault()
@@ -94,19 +195,6 @@ export default function ResultModal({
   function handlePointerUp(e: React.PointerEvent) {
     endDrag()
     try { containerRef.current?.releasePointerCapture(e.pointerId) } catch {}
-  }
-
-  function handleTouchStart(e: React.TouchEvent) {
-    const touch = e.touches[0]
-    if (!touch) return
-    e.preventDefault()
-    startDrag(touch.clientX)
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    const touch = e.touches[0]
-    if (!touch) return
-    moveDrag(touch.clientX)
   }
 
   return (
@@ -125,9 +213,16 @@ export default function ResultModal({
           <h3 className="text-lg font-medium text-charcoal text-center mb-2">
             穿搭效果图
           </h3>
-          <p className="text-[11px] text-warm-gray/50 text-center mb-4">
-            {ANGLE_LABELS[resultAngle]}视角 · 图片上左右滑动旋转 · 已生成 {generatedCount}/3 角度
+          <p className="text-[11px] text-warm-gray/50 text-center mb-2">
+            {ANGLE_LABELS[resultAngle]}视角 · 图片上左右滑动旋转 · 已生成 {generatedCount}/{ANGLES.length} 角度
           </p>
+
+          {/* 模型说明 */}
+          {isGenerating && (
+            <p className="mb-4 text-xs text-warm-gray/70 text-center animate-text-breathe">
+              基于 GPT Image 2 模型生成，等待稍久，画质更细腻
+            </p>
+          )}
 
           {/* 图片区 */}
           <div
@@ -135,36 +230,88 @@ export default function ResultModal({
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={endDrag}
-            className={`relative w-full max-w-[280px] sm:max-w-sm mx-auto rounded-2xl overflow-hidden
-              ${dragging ? "cursor-grabbing" : "cursor-ew-resize"}`}
+            className={`relative w-full max-w-[280px] sm:max-w-sm mx-auto rounded-2xl overflow-hidden select-none
+              ${dragging ? "cursor-grabbing shadow-lg" : "cursor-ew-resize"}`}
             style={{ aspectRatio: "4/7", touchAction: "none" }}
           >
-            {isGenerating ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                <div className="w-10 h-10 rounded-full border-[3px] border-warm-gray/15 border-t-rose animate-spin" />
-                <p className="text-xs text-warm-gray/60">
-                  {genStage === "connecting" && "连接 AI 服务..."}
-                  {genStage === "generating" && "AI 绘制中..."}
-                  {genStage === "processing" && "处理图片中..."}
-                </p>
-                <p className="text-[10px] text-warm-gray/40">
-                  {ANGLE_LABELS[resultAngle]}视角 · {elapsed}s
-                </p>
-              </div>
-            ) : currentImage ? (
+            {/* 预加载所有人台角度图 */}
+            {ANGLES.map((angle) => (
               <img
-                src={currentImage.url}
-                alt={`穿搭效果 ${ANGLE_LABELS[resultAngle]}视角`}
-                className="w-full h-full object-contain select-none pointer-events-none"
+                key={`preload-${angle}`}
+                src={`/${mannequinPrefix}-${angle}.png?v=${cacheVer.current}`}
+                alt=""
+                className="hidden"
                 draggable={false}
               />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                <p className="text-xs text-warm-gray/40">此角度未生成</p>
+            ))}
+
+            {/* 人台底图 + AI 效果图（一起跟手平移） */}
+            <div
+              className="absolute inset-0 flex items-center justify-center rounded-2xl"
+              style={{
+                transform: `translateX(${visualShift}px)`,
+                transition: dragging ? "none" : "transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1.2)",
+              }}
+            >
+              {/* 人台底图 — AI 图片覆盖时透明度降为 0 */}
+              <img
+                src={mannequinSrc}
+                alt=""
+                className="w-full h-full object-contain select-none pointer-events-none transition-opacity duration-150"
+                draggable={false}
+                style={{
+                  opacity: currentImage ? 0 : (!imagesLoaded.has(ANGLES[resultAngle]) ? 0.6 : 1),
+                }}
+              />
+
+              {/* AI 生成效果图覆盖在人台上 */}
+              {currentImage && (
+                <img
+                  src={currentImage.url}
+                  alt={`穿搭效果 ${ANGLE_LABELS[resultAngle]}视角`}
+                  className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
+                  draggable={false}
+                />
+              )}
+            </div>
+
+            {/* 生成中遮罩 */}
+            {isGenerating && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-soft-white/60 rounded-2xl px-4">
+                <div className="w-10 h-10 rounded-full border-[3px] border-warm-gray/15 border-t-rose animate-spin" />
+
+                {/* 进度条 */}
+                <div className="w-full max-w-[200px]">
+                  <div className="h-2 rounded-full bg-warm-gray/10 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-rose/50 via-rose to-rose/80 transition-all duration-1000 ease-out"
+                      style={{ width: `${Math.min(elapsed / 60 * 95, 95)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1.5">
+                    <span className="text-[10px] text-warm-gray/50">{ANGLE_LABELS[resultAngle]}视角</span>
+                    <span className="text-[10px] text-warm-gray/50 font-medium">
+                      {elapsed < 5
+                        ? "预计约 1 分钟"
+                        : `预计剩余 ${Math.max(Math.round(60 - elapsed), 5)}s`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 安抚文案（轮换） */}
+                <p className="text-sm text-charcoal/70 font-medium text-center leading-relaxed max-w-[200px] transition-opacity duration-500">
+                  {elapsed < 15
+                    ? "精心搭配值得等待 ✦"
+                    : elapsed < 40
+                    ? "每一笔都是为你定制..."
+                    : "马上就好，正在做最后的润色 ✨"}
+                </p>
+              </div>
+            )}
+
+            {/* 未生成遮罩 — 生成按钮 */}
+            {!currentImage && !isGenerating && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl">
                 {onGenerateAngle && (
                   <button
                     onClick={(e) => {
@@ -179,14 +326,24 @@ export default function ResultModal({
                 )}
               </div>
             )}
+
+            {/* 拖拽方向提示 */}
+            {dragging && Math.abs(visualShift) > 5 && (
+              <div
+                className="absolute inset-y-0 w-1/2 flex items-center pointer-events-none"
+                style={{ left: visualShift > 0 ? 0 : "auto", right: visualShift < 0 ? 0 : "auto" }}
+              >
+                <div className={`w-full h-full ${visualShift > 0 ? "bg-gradient-to-r" : "bg-gradient-to-l"} from-rose/5 to-transparent`} />
+              </div>
+            )}
           </div>
 
-          {/* 8 角度指示器 */}
+          {/* 角度指示器 */}
           <div className="flex items-center justify-center gap-1.5 mt-4">
             {ANGLES.map((_, i) => {
-              const hasImage = resultImages.has(i)
+              const hasImage = resultImages.has(toApiAngle(i))
               const isCurrent = resultAngle === i
-              const isPending = generatingAngle === i
+              const isPending = generatingAngle === toApiAngle(i)
               return (
                 <button
                   key={i}
@@ -207,7 +364,7 @@ export default function ResultModal({
               )
             })}
           </div>
-          <div className="flex justify-between text-[9px] text-warm-gray/30 mt-1 px-4">
+          <div className="flex justify-between text-[9px] text-warm-gray/30 mt-1 px-8">
             {ANGLE_LABELS.map((label, i) => (
               <span key={i} className={i === resultAngle ? "text-charcoal/60" : ""}>{label}</span>
             ))}
@@ -222,7 +379,32 @@ export default function ResultModal({
 
           {/* 搭搭点评卡片 */}
           {currentImage && (reviewData || reviewLoading) && (
-            <div className="mt-5 bg-cream/50 rounded-2xl p-4 animate-fade-in-up">
+            <div className="mt-5 bg-cream/50 rounded-2xl p-4 animate-fade-in-up relative overflow-hidden">
+              {/* 🎉 85+ 庆祝动画 */}
+              {reviewData && celebration === "showing" && reviewData.totalScore >= 85 && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-cream/90 rounded-2xl animate-celebration-in">
+                  <span className="text-6xl animate-celebration-bounce">🎉</span>
+                  <p className="mt-3 text-base font-semibold text-charcoal animate-celebration-text">
+                    看来你是一个时髦精！
+                  </p>
+                </div>
+              )}
+
+              {/* 🦊 低于 85 分调侃动画 */}
+              {reviewData && celebration === "showing" && reviewData.totalScore < 85 && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-cream/90 rounded-2xl animate-celebration-in">
+                  <span className="text-5xl animate-fox-tilt">🦊</span>
+                  <p className="mt-2 text-sm font-medium text-charcoal/80">
+                    搭搭觉得你还差一口气
+                  </p>
+                  <p className="mt-1 text-xs text-warm-gray/50">
+                    {reviewData.totalScore >= 70
+                      ? "但已经很不错了，微调一下更出彩～"
+                      : "再试试调整版型和色彩搭配吧！"}
+                  </p>
+                </div>
+              )}
+
               {/* 头部 */}
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xl">🦊</span>
@@ -235,7 +417,9 @@ export default function ResultModal({
                 ) : reviewData ? (
                   <>
                     <span className="text-[10px] text-warm-gray/40 ml-auto">综合评分</span>
-                    <span className="text-lg font-semibold text-charcoal">{reviewData.totalScore}</span>
+                    <span className={`text-lg font-semibold ${reviewData.totalScore >= 85 ? "bg-gradient-to-r from-amber-400 to-rose bg-clip-text text-transparent" : "text-charcoal"}`}>
+                      {reviewData.totalScore}
+                    </span>
                     <StarRating score={reviewData.totalScore} />
                   </>
                 ) : null}

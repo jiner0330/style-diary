@@ -3,83 +3,152 @@
 import { useState, useRef, useEffect } from "react"
 import { getItemById } from "@/lib/mock-data"
 import { getAuthToken } from "@/lib/supabase"
-import type { OutfitState } from "@/types"
+import { useOutfitStore } from "@/store/outfit"
+import type { OutfitState, AIOutfitPlan, AIOutfitItem, ClothingItem } from "@/types"
+import toast from "react-hot-toast"
 
-interface Message {
+export interface ChatMessage {
   role: "user" | "assistant"
   content: string
   rounds?: number
 }
 
+const CHAT_KEY = "sd-chat-msgs"
+
 interface Props {
   currentOutfit: OutfitState
   onClose?: () => void
   onGenerateOutfit: () => void
+  onGenerateFromAIItems?: (items: AIOutfitItem[]) => void
   onWearSet: (items: { slot: string; itemId: string }[]) => void
   userCoords?: { lat: number; lon: number } | null
+  gender?: "female" | "male"
+  bodyType?: string | null
+  styleTags?: string[]
+  autoFocus?: boolean
 }
 
-const QUICK_COMMANDS = [
+const QUICK_COMMANDS_FEMALE = [
   { label: "约会甜妹风", prompt: "帮我推荐一套适合约会的甜妹风穿搭" },
   { label: "通勤简约", prompt: "帮我推荐一套简约通勤穿搭" },
   { label: "帮我搭下装", prompt: "我现在上衣已经选好了，帮我推荐搭配的下装和鞋子" },
   { label: "评价这套", prompt: "帮我评价下当前这套搭配，有哪些可以改进的？" },
 ]
 
-function hasOutfitScheme(text: string): boolean {
-  return /方案[一二三四五]/.test(text) && parseItemIds(text).length > 0
-}
+const QUICK_COMMANDS_MALE = [
+  { label: "约会简约风", prompt: "帮我推荐一套适合约会的简约帅气穿搭" },
+  { label: "通勤商务", prompt: "帮我推荐一套商务通勤穿搭" },
+  { label: "帮我搭下装", prompt: "我现在上衣已经选好了，帮我推荐搭配的下装和鞋子" },
+  { label: "评价这套", prompt: "帮我评价下当前这套搭配，有哪些可以改进的？" },
+]
 
-// 解析 AI 回复中的单品 ID（格式: #top-04 或 #top-uuid）
-function parseItemIds(text: string): { slot: string; itemId: string }[] {
-  const idPattern = /#(top|bottom|dress|outerwear|shoes|bag|acc)-([\w-]+)/g
-  const seen = new Set<string>()
-  const result: { slot: string; itemId: string }[] = []
-  for (const match of text.matchAll(idPattern)) {
-    const rawId = match[2]
-    const fullId = `${match[1]}-${rawId}`
-    if (seen.has(fullId)) continue
-    seen.add(fullId)
-    const item = getItemById(fullId)
-    if (item) {
-      const slot = item.category === "accessory" ? "accessories" : item.category
-      result.push({ slot, itemId: fullId })
+function extractJSONObjects(text: string): string[] {
+  const results: string[] = []
+  // Search for both "plan" and "items" markers
+  const markers = [/\"plan\"\s*:\s*\d+/, /\"items\"\s*:\s*\[/]
+  for (const markerRe of markers) {
+    const re = new RegExp(markerRe.source, "g")
+    let match
+    while ((match = re.exec(text)) !== null) {
+      // 向前找到最近的 {
+      let start = match.index
+      while (start > 0 && text[start] !== "{") start--
+      if (text[start] !== "{") continue
+
+      let depth = 0
+      let i = start
+      for (; i < text.length; i++) {
+        if (text[i] === "{") depth++
+        else if (text[i] === "}") {
+          depth--
+          if (depth === 0) break
+        }
+      }
+      if (depth === 0 && i > match.index) results.push(text.slice(start, i + 1))
     }
   }
-  return result
+  return results
 }
 
-export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, onWearSet, userCoords }: Props) {
-  const [messages, setMessages] = useState<Message[]>([])
+function parseAIOutfitPlans(text: string): AIOutfitPlan[] {
+  const plans: AIOutfitPlan[] = []
+  const seen = new Set<string>()
+
+  // 1. 匹配 code block（```json 或 ``` 不带语言标签）
+  const codeFenceRe = /```(?:\w+)?\s*\n?([\s\S]*?)```/g
+  let match
+  while ((match = codeFenceRe.exec(text)) !== null) {
+    try {
+      const obj = JSON.parse(match[1].trim())
+      // Accept any JSON with items array (with or without "plan" key)
+      if (obj.items && Array.isArray(obj.items)) {
+        const key = JSON.stringify(obj.plan ?? match[1].trim().slice(0, 60))
+        if (!seen.has(key)) {
+          seen.add(key)
+          plans.push(obj as AIOutfitPlan)
+        }
+      }
+    } catch { /* skip malformed */ }
+  }
+
+  // 2. 兜底：从无 code fence 的文本中提取裸 JSON 对象（无论 code fence 解析到了几个）
+  const candidates = extractJSONObjects(text)
+  for (const candidate of candidates) {
+    try {
+      const obj = JSON.parse(candidate)
+      if (obj.items && Array.isArray(obj.items)) {
+        const key = JSON.stringify(obj.plan ?? candidate.slice(0, 60))
+        if (!seen.has(key)) {
+          seen.add(key)
+          plans.push(obj as AIOutfitPlan)
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  return plans
+}
+
+export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, onGenerateFromAIItems, onWearSet, userCoords, gender, bodyType, styleTags, autoFocus }: Props) {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [loadStage, setLoadStage] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const autoGenRef = useRef(false)
+
+  // 本地消息状态 + localStorage 持久化
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CHAT_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed)
+      }
+    } catch {}
+  }, [])
+
+  function addMessage(msg: ChatMessage) {
+    setMessages((prev) => {
+      const next = [...prev, msg]
+      try { localStorage.setItem(CHAT_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  const addAIItems = useOutfitStore((s) => s.addAIItems)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages, loading])
 
-  // 当最后一条 AI 消息包含搭配方案时，自动穿戴并生图
   useEffect(() => {
-    if (autoGenRef.current) return
-    const lastMsg = messages[messages.length - 1]
-    if (!lastMsg || lastMsg.role !== "assistant") return
-    if (!hasOutfitScheme(lastMsg.content)) return
+    if (autoFocus) {
+      setTimeout(() => inputRef.current?.focus(), 150)
+    }
+  }, [autoFocus])
 
-    autoGenRef.current = true
-    handleWearScheme(lastMsg.content)
-    // 延迟让 store 更新生效后触发生图
-    setTimeout(() => onGenerateOutfit(), 100)
-  }, [messages])
-
-  // 新消息发送时重置 auto-gen 标记
-  useEffect(() => {
-    if (loading) autoGenRef.current = false
-  }, [loading])
-
+  /** UI 展示用的简短上下文 */
   function outfitContext(): string {
     const parts: string[] = []
     const slots = ["dress", "top", "bottom", "outerwear", "shoes", "bag"] as const
@@ -89,24 +158,63 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
     for (const slot of slots) {
       const id = currentOutfit[slot]
       if (id && typeof id === "string") {
-        const item = getItemById(id)
+        const item = getItemById(id) || useOutfitStore.getState().aiItemsCache[id]
         if (item) parts.push(`${labels[slot]}:${item.name}`)
       }
     }
     if (currentOutfit.accessories.length > 0) {
       const accNames = currentOutfit.accessories
-        .map((id) => getItemById(id)?.name)
+        .map((id) => {
+          const item = getItemById(id) || useOutfitStore.getState().aiItemsCache[id]
+          return item?.name
+        })
         .filter(Boolean)
       if (accNames.length > 0) parts.push(`配饰:${accNames.join("、")}`)
     }
     return parts.join(" · ")
   }
 
+  /** 发给 AI 的完整单品描述（含颜色/材质/版型/风格/细节） */
+  function describeOutfitForAI(): string | null {
+    const lines: string[] = []
+    const slots = ["dress", "top", "bottom", "outerwear", "shoes", "bag"] as const
+    const labels: Record<string, string> = {
+      dress: "连衣裙", top: "上衣", bottom: "下装", outerwear: "外套", shoes: "鞋", bag: "包",
+    }
+    for (const slot of slots) {
+      const id = currentOutfit[slot]
+      if (!id || typeof id !== "string") continue
+      const item = getItemById(id) || useOutfitStore.getState().aiItemsCache[id]
+      if (!item) continue
+      const attrs: string[] = [item.name]
+      if (item.color) attrs.push(`颜色${item.color}`)
+      if (item.material) attrs.push(`${item.material}材质`)
+      if (item.sub_category) attrs.push(`版型${item.sub_category}`)
+      if (item.fit) attrs.push(`${item.fit}剪裁`)
+      if (item.length) attrs.push(`长度${item.length}`)
+      if (item.pattern) attrs.push(`图案${item.pattern}`)
+      if (item.style_tags?.length) attrs.push(`风格${item.style_tags.join("、")}`)
+      if (item.detail) attrs.push(`细节${item.detail}`)
+      lines.push(`${labels[slot]}：${attrs.join(" | ")}`)
+    }
+    if (currentOutfit.accessories.length > 0) {
+      const acc = currentOutfit.accessories
+        .map((id) => {
+          const item = getItemById(id) || useOutfitStore.getState().aiItemsCache[id]
+          if (!item) return null
+          return `${item.name}(风格:${item.style_tags?.join("、") || "无"})`
+        })
+        .filter(Boolean)
+      if (acc.length > 0) lines.push(`配饰：${acc.join("、")}`)
+    }
+    return lines.length > 0 ? lines.join("\n") : null
+  }
+
   async function sendMessage(text: string) {
     if (!text.trim() || loading) return
 
-    const userMsg: Message = { role: "user", content: text.trim() }
-    setMessages((prev) => [...prev, userMsg])
+    const userMsg: ChatMessage = { role: "user", content: text.trim() }
+    addMessage(userMsg)
     setInput("")
     setLoading(true)
 
@@ -128,28 +236,29 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
         bag: currentOutfit.bag,
         accessories: currentOutfit.accessories,
       }
-      console.log("[ChatPanel] sending outfit:", JSON.stringify(outfitForAPI))
+
+      const outfitDesc = describeOutfitForAI()
 
       const token = await getAuthToken()
-      console.log("[ChatPanel] token present:", !!token)
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, coords: userCoords }),
+        body: JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, outfitContext: outfitDesc, coords: userCoords, gender, bodyType, styleTags }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "请求失败")
 
-      const assistantMsg: Message = { role: "assistant", content: data.content, rounds: data.rounds }
-      setMessages((prev) => [...prev, assistantMsg])
+      const assistantMsg: ChatMessage = { role: "assistant", content: data.content, rounds: data.rounds }
+      ;(assistantMsg as any).plans = data.plans || []
+      addMessage(assistantMsg)
     } catch (err: any) {
-      setMessages((prev) => [...prev, {
+      addMessage({
         role: "assistant",
         content: `抱歉，搭配服务暂时出错了：${err.message}。请稍后重试～`,
-      }])
+      })
     } finally {
       setLoading(false)
       setLoadStage("")
@@ -161,24 +270,52 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
     sendMessage(prompt)
   }
 
-  function handleWearScheme(text: string) {
-    const items = parseItemIds(text)
-    if (items.length === 0) return
-    // 每个 slot 取首次出现（方案一优先），accessories 合并
-    const slotMap = new Map<string, string>()
-    const accItems: string[] = []
-    for (const { slot, itemId } of items) {
-      if (slot === "accessories") {
-        if (!accItems.includes(itemId)) accItems.push(itemId)
-      } else {
-        if (!slotMap.has(slot)) slotMap.set(slot, itemId)
+  function handleWearAI(items: AIOutfitItem[]) {
+    const ts = Date.now()
+    const clothingItems: ClothingItem[] = []
+    const wearItems: { slot: string; itemId: string }[] = []
+
+    for (let i = 0; i < items.length; i++) {
+      const ai = items[i]
+      const id = `ai-${i}-${ai.slot}-${ts}`
+      const item: ClothingItem = {
+        id,
+        owner_id: null,
+        name: ai.name,
+        category: ai.category as ClothingItem["category"],
+        sub_category: ai.sub_category,
+        color: ai.color,
+        material: ai.material || null,
+        pattern: null,
+        fit: (ai.fit as ClothingItem["fit"]) || null,
+        length: (ai.length as ClothingItem["length"]) || null,
+        neckline: (ai.neckline as ClothingItem["neckline"]) || null,
+        detail: ai.detail || null,
+        style_tags: ai.style_tags,
+        image_url: null,
+        layer_order: 0,
+        occupies_full_body: ai.category === "dress",
+        source: "ai_recommended",
       }
+      clothingItems.push(item)
+
+      const slot = ai.slot === "accessories" ? "accessories" : ai.slot
+      wearItems.push({ slot, itemId: id })
     }
-    const wearItems = [...slotMap.entries()].map(([slot, itemId]) => ({ slot, itemId }))
-    for (const itemId of accItems) {
-      wearItems.push({ slot: "accessories", itemId })
-    }
+
+    addAIItems(clothingItems)
     onWearSet(wearItems)
+    toast.success("已穿上这套搭配")
+  }
+
+  function handleGenerateAI(items: AIOutfitItem[]) {
+    if (onGenerateFromAIItems) {
+      onGenerateFromAIItems(items)
+    } else {
+      // 回退：先穿上再触发旧版生图
+      handleWearAI(items)
+      setTimeout(() => onGenerateOutfit(), 100)
+    }
   }
 
   const context = outfitContext()
@@ -210,151 +347,229 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
         </div>
       )}
 
-      {/* 消息列表 */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        {messages.length === 0 && (
-          <div className="text-center py-8">
-            <p className="text-3xl mb-3">🦊</p>
-            <p className="text-sm text-charcoal font-medium mb-1">我是你的搭配助手搭搭</p>
-            <p className="text-xs text-warm-gray/50 leading-relaxed">
-              告诉我你想穿什么风格、去什么场合<br />
-              我帮你从衣橱里挑出最适合的搭配 🦊
-            </p>
-          </div>
-        )}
-
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
+      {/* 消息列表 — 仅在有消息或加载中时占空间 */}
+      {(messages.length > 0 || loading) && (
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+          {messages.map((msg, i) => (
             <div
-              className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line ${
-                msg.role === "user"
-                  ? "bg-charcoal text-soft-white rounded-br-md"
-                  : "bg-cream text-charcoal rounded-bl-md"
-              }`}
+              key={i}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              {msg.role === "assistant" ? (
-                <AssistantContent
-                  text={msg.content}
-                  onWear={() => handleWearScheme(msg.content)}
-                  showActions={parseItemIds(msg.content).length > 0 && i === messages.length - 1}
-                />
-              ) : (
-                msg.content
-              )}
-              {msg.rounds && (
-                <p className="text-[9px] text-warm-gray/40 mt-1">思考 {msg.rounds} 轮</p>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-cream rounded-2xl rounded-bl-md px-4 py-3">
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-                <span className="text-xs text-warm-gray/60">
-                  {!loadStage && "连接中..."}
-                  {loadStage === "connecting" && "正在查看你的衣柜..."}
-                  {loadStage === "generating" && "正在搭配中..."}
-                  {loadStage === "processing" && "整理方案中..."}
-                </span>
+              <div
+                className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line ${
+                  msg.role === "user"
+                    ? "bg-charcoal text-soft-white rounded-br-md"
+                    : "bg-cream text-charcoal rounded-bl-md"
+                }`}
+              >
+                {msg.role === "assistant" ? (
+                  <AssistantContent
+                    text={msg.content}
+                    plans={(msg as any).plans || parseAIOutfitPlans(msg.content)}
+                    onGenerate={handleGenerateAI}
+                    isLatest={i === messages.length - 1}
+                  />
+                ) : (
+                  msg.content
+                )}
+                {msg.rounds && (
+                  <p className="text-[9px] text-warm-gray/40 mt-1">思考 {msg.rounds} 轮</p>
+                )}
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          ))}
 
-      {/* 快捷命令 */}
-      <div className="px-4 py-2 border-t border-warm-gray/10 flex flex-wrap gap-1.5">
-        {QUICK_COMMANDS.map((cmd) => (
-          <button
-            key={cmd.label}
-            onClick={() => handleQuickCommand(cmd.prompt)}
-            disabled={loading}
-            className="text-[10px] px-2.5 py-1.5 rounded-full border border-warm-gray/20 text-warm-gray/70
-                       hover:border-rose/30 hover:text-rose hover:bg-rose/5 transition-colors
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {cmd.label}
-          </button>
-        ))}
-      </div>
-
-      {/* 生图入口：有搭配时常显 */}
-      {hasOutfit && (
-        <div className="px-4 pt-2 pb-1">
-          <button
-            onClick={onGenerateOutfit}
-            disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-charcoal text-soft-white text-sm font-medium
-                       active:scale-[0.98] transition-all hover:bg-charcoal/90 disabled:opacity-50"
-          >
-            ✨ 生成效果图
-          </button>
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-cream rounded-2xl rounded-bl-md px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                  <span className="text-xs text-warm-gray/60">
+                    {!loadStage && "连接中..."}
+                    {loadStage === "connecting" && "正在查看你的衣柜..."}
+                    {loadStage === "generating" && "正在搭配中..."}
+                    {loadStage === "processing" && "整理方案中..."}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 输入区 */}
-      <div className="px-4 py-3 border-t border-warm-gray/15">
-        <div className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") sendMessage(input) }}
-            placeholder="描述你的搭配需求..."
-            disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-cream text-sm text-charcoal placeholder:text-warm-gray/40
-                       outline-none focus:ring-2 focus:ring-rose/20 disabled:opacity-50"
-          />
-          <button
-            onClick={() => sendMessage(input)}
-            disabled={loading || !input.trim()}
-            className="px-4 py-2.5 rounded-xl bg-charcoal text-soft-white text-sm font-medium
-                       hover:bg-charcoal/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            发送
-          </button>
+      {/* 输入卡片 — 无消息时垂直居中，有消息时贴在消息下方 */}
+      <div className={`px-4 ${messages.length === 0 && !loading ? "flex-1 flex flex-col justify-center" : "flex-shrink-0 pt-2"}`}>
+        <div className="rounded-2xl bg-cream/60 border border-warm-gray/15 px-4 py-4 space-y-3">
+          {/* 欢迎提示（无消息时显示） */}
+          {messages.length === 0 && (
+            <div className="text-center">
+              <p className="text-2xl mb-1">🦊</p>
+              <p className="text-sm text-charcoal font-medium">我是你的搭配助手搭搭</p>
+              <p className="text-[11px] text-warm-gray/60 leading-relaxed mt-0.5">
+                告诉我你想穿什么风格、去什么场合<br />
+                我帮你设计专属搭配方案 ✨
+              </p>
+            </div>
+          )}
+
+          {/* 快捷命令 */}
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {(gender === "male" ? QUICK_COMMANDS_MALE : QUICK_COMMANDS_FEMALE).map((cmd) => (
+              <button
+                key={cmd.label}
+                onClick={() => handleQuickCommand(cmd.prompt)}
+                disabled={loading}
+                className="text-[10px] px-2.5 py-1.5 rounded-full border border-warm-gray/20 text-warm-gray/70
+                           hover:border-rose/30 hover:text-rose hover:bg-rose/5 transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {cmd.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 输入区 */}
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") sendMessage(input) }}
+              placeholder="描述你的搭配需求..."
+              disabled={loading}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-soft-white text-sm text-charcoal placeholder:text-warm-gray/40
+                         outline-none focus:ring-2 focus:ring-rose/20 disabled:opacity-50"
+            />
+            <button
+              onClick={() => sendMessage(input)}
+              disabled={loading || !input.trim()}
+              className="px-4 py-2.5 rounded-xl bg-charcoal text-soft-white text-sm font-medium
+                         hover:bg-charcoal/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              发送
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* 底部安全区 */}
+      <div className="h-2 flex-shrink-0" />
     </div>
   )
 }
 
 function AssistantContent({
-  text, onWear, showActions,
+  text, plans, onGenerate, isLatest,
 }: {
   text: string
-  onWear: () => void
-  showActions: boolean
+  plans: AIOutfitPlan[]
+  onGenerate: (items: AIOutfitItem[]) => void
+  isLatest: boolean
 }) {
-  const html = text
+  // 服务端已清理 JSON 代码块，客户端仅做防御性兜底
+  let displayText = text
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/```/g, "")
+  // 收集所有裸 JSON 对象后逆序移除，避免字符串突变导致索引错位
+  const ranges: [number, number][] = []
+  const markers = [/\"plan\"\s*:\s*\d+/, /\"items\"\s*:\s*\[/]
+  for (const markerRe of markers) {
+    const rawRe = new RegExp(markerRe.source, "g")
+    let match
+    while ((match = rawRe.exec(displayText)) !== null) {
+      let start = match.index
+      while (start > 0 && displayText[start] !== "{") start--
+      if (displayText[start] !== "{") continue
+      let depth = 0; let i = start
+      for (; i < displayText.length; i++) {
+        if (displayText[i] === "{") depth++
+        else if (displayText[i] === "}") { depth--; if (depth === 0) break }
+      }
+      if (depth === 0 && i > match.index) ranges.push([start, i])
+    }
+  }
+  for (let r = ranges.length - 1; r >= 0; r--) {
+    displayText = displayText.slice(0, ranges[r][0]) + displayText.slice(ranges[r][1] + 1)
+  }
+  displayText = displayText.replace(/\n{3,}/g, "\n\n").trim()
+
+  const html = displayText
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/^### (.+)$/gm, '<span class="text-rose font-medium">$1</span>')
+    .replace(/^### (.+)$/gm, '<span class="text-rose font-medium text-sm">$1</span>')
     .replace(/^## (.+)$/gm, '<span class="font-semibold text-sm">$1</span>')
     .replace(/^---$/gm, '<hr class="my-2 border-warm-gray/20" />')
     .replace(/\n/g, "<br/>")
 
   return (
     <div>
-      <div dangerouslySetInnerHTML={{ __html: html }} />
-      {showActions && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          <button
-            onClick={onWear}
-            className="text-[11px] px-3 py-1.5 rounded-full bg-rose/10 text-rose font-medium
-                       active:scale-[0.97] transition-all hover:bg-rose/20"
+      {displayText && <div dangerouslySetInnerHTML={{ __html: html }} />}
+
+      {plans.length > 0 && (
+        <div className="mt-2 space-y-3">
+          {plans.map((plan, pi) => (
+            <PlanCard
+              key={pi}
+              plan={plan}
+              onGenerate={() => onGenerate(plan.items)}
+              showActions={isLatest}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PlanCard({
+  plan, onGenerate, showActions,
+}: {
+  plan: AIOutfitPlan
+  onGenerate: () => void
+  showActions: boolean
+}) {
+  return (
+    <div className="rounded-xl bg-soft-white/60 border border-warm-gray/15 p-3 space-y-2">
+      {/* 头部：方案名 + 评分 */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-charcoal">
+          {plan.name}
+        </span>
+        <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose/10 text-rose font-medium">
+          {plan.score} 分
+        </span>
+      </div>
+
+      {/* 理由 */}
+      {plan.reason && (
+        <p className="text-[11px] text-warm-gray/70 leading-relaxed">{plan.reason}</p>
+      )}
+
+      {/* 单品列表 */}
+      <div className="flex flex-wrap gap-1">
+        {plan.items.map((item, ii) => (
+          <span
+            key={ii}
+            className="text-[10px] px-2 py-0.5 rounded-full bg-cream text-charcoal/70"
           >
-            👗 穿上这套
+            {item.name}
+          </span>
+        ))}
+      </div>
+
+      {/* 操作按钮 */}
+      {showActions && (
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onGenerate}
+            className="text-[11px] px-3 py-1.5 rounded-full bg-charcoal/10 text-charcoal font-medium
+                       active:scale-[0.97] transition-all hover:bg-charcoal/20"
+          >
+            ✨ 生成效果图
           </button>
         </div>
       )}

@@ -13,7 +13,7 @@ interface Props {
 }
 
 /** 桌面端：可拖拽的个人衣橱单品 */
-function DraggableChip({ item, onClick }: { item: ClothingItem; onClick?: (item: ClothingItem) => void }) {
+function DraggableChip({ item, onClick, onDelete }: { item: ClothingItem; onClick?: (item: ClothingItem) => void; onDelete?: (item: ClothingItem, e: React.MouseEvent) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: item.id,
     data: { item },
@@ -31,7 +31,7 @@ function DraggableChip({ item, onClick }: { item: ClothingItem; onClick?: (item:
       style={style}
       className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl cursor-grab active:cursor-grabbing touch-none
         bg-cream/60 hover:bg-rose/5 hover:ring-1 hover:ring-rose/20
-        transition-[background-color,box-shadow] active:scale-95 group ${isDragging ? "opacity-60 shadow-lg ring-2 ring-rose/30" : ""}`}
+        transition-[background-color,box-shadow] active:scale-95 group relative ${isDragging ? "opacity-60 shadow-lg ring-2 ring-rose/30" : ""}`}
     >
       <div
         className="w-7 h-7 rounded-lg flex items-center justify-center text-[9px] overflow-hidden bg-cream cursor-pointer"
@@ -47,33 +47,61 @@ function DraggableChip({ item, onClick }: { item: ClothingItem; onClick?: (item:
         className="text-[11px] text-charcoal max-w-[80px] truncate cursor-pointer"
         onClick={() => onClick?.(item)}
       >{item.name}</span>
+      <button
+        onClick={(e) => onDelete?.(item, e)}
+        className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-[10px]
+                   text-warm-gray/30 hover:text-red-400 hover:bg-red-50 opacity-0 group-hover:opacity-100
+                   transition-all cursor-pointer"
+        title="删除"
+      >×</button>
     </div>
   )
 }
 
 /** 移动端：可点击的个人衣橱单品 */
-function ClickableThumb({ item, onClick }: { item: ClothingItem; onClick?: (item: ClothingItem) => void }) {
+function ClickableThumb({ item, onClick, onDelete }: { item: ClothingItem; onClick?: (item: ClothingItem) => void; onDelete?: (item: ClothingItem, e: React.MouseEvent) => void }) {
   return (
-    <button
-      onClick={() => onClick?.(item)}
-      className="flex-shrink-0 w-14 h-14 rounded-xl bg-cream/50 overflow-hidden
-                 hover:ring-2 hover:ring-rose/30 transition-[background-color,box-shadow] active:scale-95"
-    >
-      {item.image_url ? (
-        <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-[9px] text-warm-gray/50">
-          {item.name.slice(0, 3)}
-        </div>
-      )}
-    </button>
+    <div className="relative flex-shrink-0 group">
+      <button
+        onClick={() => onClick?.(item)}
+        className="w-14 h-14 rounded-xl bg-cream/50 overflow-hidden
+                   hover:ring-2 hover:ring-rose/30 transition-[background-color,box-shadow] active:scale-95"
+      >
+        {item.image_url ? (
+          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[9px] text-warm-gray/50">
+            {item.name.slice(0, 3)}
+          </div>
+        )}
+      </button>
+      <button
+        onClick={(e) => onDelete?.(item, e)}
+        className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full
+                   bg-white/90 text-[10px] text-red-400 shadow-sm
+                   transition-all cursor-pointer"
+        title="删除"
+      >×</button>
+    </div>
   )
 }
 
 export default function PersonalWardrobeBar({ onItemClick, compact = false }: Props) {
-  const { items, loading, refresh } = usePersonalWardrobe()
+  const { items, loading, refresh, deleteItem } = usePersonalWardrobe()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+
+  async function handleDelete(item: ClothingItem, e: React.MouseEvent) {
+    e.stopPropagation()
+    e.preventDefault()
+    if (!window.confirm(`确认删除「${item.name}」？此操作不可撤销。`)) return
+    const ok = await deleteItem(item.id)
+    if (ok) {
+      toast.success("已删除")
+    } else {
+      toast.error("删除失败，请重试")
+    }
+  }
 
   const isEmpty = items.length === 0
 
@@ -166,7 +194,7 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
           ) : (
             <div className="flex gap-2 overflow-x-auto scrollbar-none">
               {items.map((item) => (
-                <ClickableThumb key={item.id} item={item} onClick={onItemClick} />
+                <ClickableThumb key={item.id} item={item} onClick={onItemClick} onDelete={handleDelete} />
               ))}
             </div>
           )}
@@ -203,7 +231,7 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
           <>
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
               {items.map((item) => (
-                <DraggableChip key={item.id} item={item} onClick={onItemClick} />
+                <DraggableChip key={item.id} item={item} onClick={onItemClick} onDelete={handleDelete} />
               ))}
             </div>
             {UploadBtns}

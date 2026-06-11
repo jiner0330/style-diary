@@ -4,17 +4,17 @@ import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
 
 const MAIN_SLOTS = [
-  { slot: "dress", label: "连衣裙" },
   { slot: "top", label: "上衣" },
   { slot: "bottom", label: "下装" },
+  { slot: "dress", label: "连衣裙" },
   { slot: "outerwear", label: "外套" },
   { slot: "shoes", label: "鞋子" },
-  { slot: "bag", label: "包包" },
 ] as const
 
 interface Props {
   compact?: boolean
   onAddClick?: (category: string) => void
+  gender?: "female" | "male"
 }
 
 /** 迷你人台预览 — 单品缩略图叠加在微型人台剪影上 */
@@ -42,11 +42,15 @@ function MiniPreview({ imageUrl, color }: { imageUrl?: string | null; color?: st
   )
 }
 
-export default function OutfitBar({ compact = false, onAddClick }: Props) {
+export default function OutfitBar({ compact = false, onAddClick, gender }: Props) {
   const outfit = useOutfitStore((s) => s.outfit)
   const removeSlot = useOutfitStore((s) => s.removeSlot)
 
-  const filledSlots = MAIN_SLOTS.filter(({ slot }) => {
+  const slots = gender === "male"
+    ? MAIN_SLOTS.filter((s) => s.slot !== "dress")
+    : MAIN_SLOTS
+
+  const filledSlots = slots.filter(({ slot }) => {
     const id = outfit[slot]
     return id && typeof id === "string"
   }).map(({ slot, label }) => {
@@ -67,7 +71,7 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
   if (compact) {
     return (
       <div className="w-full px-4">
-        <p className="text-[11px] text-warm-gray/60 mb-2 tracking-wide">搭配清单</p>
+        <p className="text-[11px] text-charcoal/70 mb-2 tracking-wide">搭配清单</p>
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-none">
           {/* 已填槽位卡片 */}
           {filledSlots.map(({ slot, label, item }) => (
@@ -78,7 +82,7 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
             >
               <MiniPreview imageUrl={item?.image_url} color={item?.color} />
               <div className="flex flex-col min-w-0">
-                <span className="text-[9px] text-warm-gray/60 leading-tight">{label}</span>
+                <span className="text-[9px] text-charcoal/60 leading-tight">{label}</span>
                 <span className="text-[11px] text-charcoal font-medium leading-tight truncate max-w-[72px]">
                   {item?.name || "—"}
                 </span>
@@ -103,7 +107,7 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
             >
               <MiniPreview imageUrl={item?.image_url} color={item?.color} />
               <div className="flex flex-col min-w-0">
-                <span className="text-[9px] text-warm-gray/60 leading-tight">配饰</span>
+                <span className="text-[9px] text-charcoal/60 leading-tight">配饰</span>
                 <span className="text-[11px] text-charcoal font-medium leading-tight truncate max-w-[72px]">
                   {item?.name || "—"}
                 </span>
@@ -120,7 +124,7 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
           ))}
 
           {/* 空槽位占位 */}
-          {MAIN_SLOTS.filter(({ slot }) => !outfit[slot] || typeof outfit[slot] !== "string")
+          {slots.filter(({ slot }) => !outfit[slot] || typeof outfit[slot] !== "string")
             .map(({ slot, label }) => (
               <button
                 key={`empty-${slot}`}
@@ -132,13 +136,30 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
                 {/* 空态剪影 */}
                 <div className="w-8 h-[14px] flex-shrink-0 rounded-[4px] bg-warm-gray/10" />
                 <div className="flex flex-col min-w-0">
-                  <span className="text-[9px] text-warm-gray/40 leading-tight">{label}</span>
-                  <span className="text-[11px] text-warm-gray/40 leading-tight whitespace-nowrap">
+                  <span className="text-[9px] text-charcoal/50 leading-tight">{label}</span>
+                  <span className="text-[11px] text-charcoal/50 leading-tight whitespace-nowrap">
                     点击添加
                   </span>
                 </div>
               </button>
             ))}
+          {/* 配饰空槽位 */}
+          {accessories.length === 0 && (
+            <button
+              onClick={() => onAddClick?.("accessory")}
+              className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl
+                         border border-dashed border-warm-gray/30 hover:border-rose/30
+                         hover:bg-rose/5 transition-colors"
+            >
+              <div className="w-8 h-[14px] flex-shrink-0 rounded-[4px] bg-warm-gray/10" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-[9px] text-charcoal/50 leading-tight">配饰</span>
+                <span className="text-[11px] text-charcoal/50 leading-tight whitespace-nowrap">
+                  点击添加
+                </span>
+              </div>
+            </button>
+          )}
         </div>
       </div>
     )
@@ -147,7 +168,7 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
   // ===== 桌面模式：卡片缩略图 =====
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-[11px] text-warm-gray/60 mr-1 flex-shrink-0">已搭配</span>
+      <span className="text-[11px] text-charcoal/70 mr-1 flex-shrink-0">已搭配</span>
       {filledSlots.map(({ slot, label, item }) => (
         <div
           key={slot}
@@ -156,7 +177,7 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
         >
           <MiniPreview imageUrl={item?.image_url} color={item?.color} />
           <div className="flex flex-col min-w-0 leading-tight">
-            <span className="text-[9px] text-warm-gray/60">{label}</span>
+            <span className="text-[9px] text-charcoal/60">{label}</span>
             <span className="text-[11px] text-charcoal font-medium truncate max-w-[80px]">
               {item?.name || "—"}
             </span>
@@ -179,7 +200,7 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
         >
           <MiniPreview imageUrl={item?.image_url} color={item?.color} />
           <div className="flex flex-col min-w-0 leading-tight">
-            <span className="text-[9px] text-warm-gray/60">配饰</span>
+            <span className="text-[9px] text-charcoal/60">配饰</span>
             <span className="text-[11px] text-charcoal font-medium truncate max-w-[80px]">
               {item?.name || "—"}
             </span>
@@ -195,7 +216,7 @@ export default function OutfitBar({ compact = false, onAddClick }: Props) {
         </div>
       ))}
       {!hasAnyItem && (
-        <span className="text-[11px] text-warm-gray/40">拖拽单品到人台</span>
+        <span className="text-[11px] text-charcoal/50">拖拽单品到人台</span>
       )}
     </div>
   )

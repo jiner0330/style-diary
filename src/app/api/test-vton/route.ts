@@ -1,12 +1,11 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { readFile, writeFile, mkdir } from "fs/promises"
 import https from "https"
 import path from "path"
 import Service from "@volcengine/openapi/lib/base/service"
+import { requireAuth } from "@/lib/auth"
 
-// 绕过公司网络代理的 SSL 证书验证（仅测试用）
 const httpsAgent = new https.Agent({ rejectUnauthorized: false })
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
 const AK = process.env.VOLC_ACCESS_KEY!
 const SK = process.env.VOLC_SECRET_KEY!
@@ -34,8 +33,13 @@ const getResult = cvService.createJSONAPI("CVSync2AsyncGetResult", {
   contentType: "json",
 })
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const userId = await requireAuth(request)
+    if (!userId) {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 })
+    }
+
     if (!AK || !SK) {
       return NextResponse.json(
         { error: "请在 .env.local 设置 VOLC_ACCESS_KEY 和 VOLC_SECRET_KEY" },
@@ -56,7 +60,7 @@ export async function POST(request: Request) {
     // 加载人台图为 base64
     const mannequinFile = gender === "female"
       ? "mannequin-female-000.png"
-      : "mannequin-male.png"
+      : "mannequin-male-000.png"
     const mannequinPath = path.join(process.cwd(), "public", mannequinFile)
     const mannequinBuf = await readFile(mannequinPath)
     const mannequinB64 = mannequinBuf.toString("base64")
@@ -68,10 +72,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "没有可用的服装图片" }, { status: 400 })
     }
 
-    const garmentPath = path.join(
-      process.cwd(), "public",
-      garmentItem.image_url.split("?")[0]
-    )
+    const rawPath = garmentItem.image_url.split("?")[0]
+    const safePath = rawPath.replace(/\.\./g, "").replace(/\/\//g, "/")
+    const garmentPath = path.join(process.cwd(), "public", safePath)
     const garmentBuf = await readFile(garmentPath)
     const garmentB64 = garmentBuf.toString("base64")
     console.log(`[vton] Garment: ${garmentItem.name} (${garmentBuf.length} bytes)`)
@@ -93,7 +96,7 @@ export async function POST(request: Request) {
         do_sr: true,
         num_steps: 50,
       },
-    }, { httpsAgent })
+    }, { httpsAgent } as any)
 
     console.log("[vton] Submit response:", JSON.stringify(submitResp).slice(0, 500))
 
@@ -124,7 +127,7 @@ export async function POST(request: Request) {
         req_key: "dressing_diffusion",
         task_id: taskId,
         req_json: JSON.stringify({ return_url: true }),
-      }, { httpsAgent })
+      }, { httpsAgent } as any)
 
       const pollData = (pollResp as any).data || (pollResp as any).Result
       const status = pollData?.status
@@ -168,7 +171,7 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[test-vton]", err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "服务器内部错误" },
+      { error: "虚拟试穿失败，请稍后重试" },
       { status: 500 }
     )
   }

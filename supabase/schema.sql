@@ -39,6 +39,9 @@ CREATE TABLE clothing_items (
   material    TEXT,            -- 针织 / 雪纺 / 棉
   pattern     TEXT,            -- 纯色 / 碎花 / 条纹 / 波点
   style_tags  TEXT[] DEFAULT '{}', -- {"甜美","法式"}
+  fit         TEXT,            -- 版型: 紧身/修身/合身/宽松/oversized
+  length      TEXT,            -- 长度: 短款/常规/中长/长款
+  neckline    TEXT,            -- 领口: 圆领/V领/方领/高领/翻领/一字肩/吊带/无领
   detail      TEXT,            -- 设计细节: "腰间交叉绑带收腰"
   image_url   TEXT,            -- Supabase Storage 公开 URL
   created_at  TIMESTAMPTZ DEFAULT now(),
@@ -58,12 +61,12 @@ CREATE TABLE outfits (
   user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,     -- "约会甜妹风"
   scene_id    UUID,              -- FK → scenes (可为空，后续加)
-  dress       UUID REFERENCES clothing_items(id) ON DELETE SET NULL,
-  top         UUID REFERENCES clothing_items(id) ON DELETE SET NULL,
-  bottom      UUID REFERENCES clothing_items(id) ON DELETE SET NULL,
-  outerwear   UUID REFERENCES clothing_items(id) ON DELETE SET NULL,
-  shoes       UUID REFERENCES clothing_items(id) ON DELETE SET NULL,
-  bag         UUID REFERENCES clothing_items(id) ON DELETE SET NULL,
+  dress       TEXT,              -- 单品 ID（系统预设或用户衣橱）
+  top         TEXT,
+  bottom      TEXT,
+  outerwear   TEXT,
+  shoes       TEXT,
+  bag         TEXT,
   created_at  TIMESTAMPTZ DEFAULT now(),
   updated_at  TIMESTAMPTZ DEFAULT now()
 );
@@ -73,7 +76,7 @@ CREATE INDEX idx_outfits_user ON outfits(user_id);
 -- 🔗 搭配方案中的配饰（多对多）
 CREATE TABLE outfit_accessories (
   outfit_id UUID REFERENCES outfits(id) ON DELETE CASCADE,
-  item_id   UUID REFERENCES clothing_items(id) ON DELETE CASCADE,
+  item_id   TEXT,
   PRIMARY KEY (outfit_id, item_id)
 );
 

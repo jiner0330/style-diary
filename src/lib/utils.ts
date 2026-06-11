@@ -47,12 +47,12 @@ export const SKIN_TONE_LABELS: Record<string, string> = {
 
 // ========== 风格标签 ==========
 export const STYLE_TAG_OPTIONS_COMMON = [
-  '简约', '街头', '复古', '日系', '韩系', '学院',
-  '运动', '极简', '森系', '老钱',
+  '简约', '街头', '复古', '日系', '学院',
+  '运动', '极简', '老钱',
 ]
 
 export const STYLE_TAG_OPTIONS_FEMALE = [
-  '法式', '甜美', '波西米亚', '新中式', '田园', 'Y2K', '暗黑',
+  '法式', '甜美', '波西米亚', '新中式', '田园', 'Y2K', '暗黑', '森系', '韩系',
 ]
 
 export const STYLE_TAG_OPTIONS_MALE = [

@@ -14,6 +14,7 @@ export default function SceneDetailPage() {
   const router = useRouter()
   const [scene, setScene] = useState<Scene | null>(null)
   const [loading, setLoading] = useState(true)
+  const [userGender, setUserGender] = useState<"female" | "male">("female")
 
   useEffect(() => {
     async function load() {
@@ -29,6 +30,16 @@ export default function SceneDetailPage() {
         return
       }
       setScene(enrichScene(data))
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("gender")
+          .eq("user_id", user.id)
+          .single()
+        if (profile?.gender) setUserGender(profile.gender)
+      }
       setLoading(false)
     }
     if (id) load()
@@ -72,7 +83,7 @@ export default function SceneDetailPage() {
           </div>
 
           <p className="text-lg leading-8 text-charcoal/80 tracking-wide">
-            {scene.story_text}
+            {userGender === "male" ? scene.story_text.replace(/闺蜜/g, "好友") : scene.story_text}
           </p>
         </div>
 

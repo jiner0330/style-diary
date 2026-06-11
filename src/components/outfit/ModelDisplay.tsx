@@ -4,25 +4,30 @@ import { useState, useRef, useEffect } from "react"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
 
-const ROTATION_ANGLES = ["000", "045", "180"] as const
+const ROTATION_ANGLES = ["000", "180"] as const
 const TOTAL_FRAMES = ROTATION_ANGLES.length
-const SWIPE_THRESHOLD = 60  // px — drag must exceed this to switch angle
-const MAX_VISUAL_SHIFT = 80 // px — max translateX during drag
+const ANGLE_LABELS = ["正面", "背面"]
+const SWIPE_THRESHOLD = 30
+const MAX_VISUAL_SHIFT = 120
 
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
   outerwear:  { top: "32%", left: "50%", label: "外" },
   top:        { top: "32%", left: "50%", label: "上" },
   dress:      { top: "38%", left: "50%", label: "裙" },
-  bag:        { top: "54%", left: "74%", label: ""  },
   bottom:     { top: "68%", left: "50%", label: "下" },
   shoes:      { top: "89%", left: "42%", label: ""  },
+}
+
+// UI index → API angleIndex
+function toApiAngle(uiIndex: number): number {
+  return uiIndex === 0 ? 0 : 2
 }
 
 interface Props {
   gender: "female" | "male"
   angleIndex?: number
-  onAngleChange?: (index: number) => void
+  onAngleChange?: (uiIndex: number) => void
 }
 
 export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAngleChange }: Props) {
@@ -30,6 +35,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
   const filledCount = (["dress","top","bottom","outerwear","shoes","bag"] as const)
     .filter((s) => !!outfit[s]).length + outfit.accessories.length
 
+  const cacheVer = useRef(Date.now())
   const [internalIndex, setInternalIndex] = useState(0)
   const angleIndex = controlledIndex ?? internalIndex
   const setAngleIndex = (i: number) => {
@@ -37,26 +43,30 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     onAngleChange?.(i)
   }
 
+  const mannequinPrefix = gender === "female" ? "mannequin-female" : "mannequin-male"
+
   const [isDragging, setIsDragging] = useState(false)
-  const [visualShift, setVisualShift] = useState(0) // translateX for image follow
+  const [visualShift, setVisualShift] = useState(0)
+  const isDraggingRef = useRef(false)
   const dragStartX = useRef(0)
   const dragStartIndex = useRef(0)
-  const currentDx = useRef(0) // actual dx for angle decision on release
+  const currentDx = useRef(0)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef(0)
 
   // 预加载图片
   const [imagesLoaded, setImagesLoaded] = useState<Set<string>>(new Set())
   useEffect(() => {
-    if (gender !== "female") return
     ROTATION_ANGLES.forEach((angle) => {
       const img = new Image()
-      img.src = `/mannequin-female-${angle}.png?v=2`
+      img.src = `/${mannequinPrefix}-${angle}.png?v=${cacheVer.current}`
       img.onload = () => setImagesLoaded((prev) => new Set(prev).add(angle))
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gender])
 
   function startDrag(clientX: number) {
+    isDraggingRef.current = true
     setIsDragging(true)
     dragStartX.current = clientX
     dragStartIndex.current = angleIndex
@@ -65,18 +75,19 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
   }
 
   function moveDrag(clientX: number) {
-    if (!isDragging) return
+    if (!isDraggingRef.current) return
     cancelAnimationFrame(rafRef.current)
     rafRef.current = requestAnimationFrame(() => {
       const dx = clientX - dragStartX.current
       currentDx.current = dx
-      // Clamp visual shift for translateX
       const clamped = Math.max(-MAX_VISUAL_SHIFT, Math.min(MAX_VISUAL_SHIFT, dx))
       setVisualShift(clamped)
     })
   }
 
   function endDrag() {
+    if (!isDraggingRef.current) return
+    isDraggingRef.current = false
     setIsDragging(false)
     cancelAnimationFrame(rafRef.current)
 
@@ -114,30 +125,12 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     try { containerRef.current?.releasePointerCapture(e.pointerId) } catch {}
   }
 
-  function handleTouchStart(e: React.TouchEvent) {
-    if (isMarkerTarget(e.target)) return
-    const touch = e.touches[0]
-    if (!touch) return
-    e.preventDefault()
-    startDrag(touch.clientX)
-  }
+  const mannequinSrc = `/${mannequinPrefix}-${ROTATION_ANGLES[angleIndex]}.png?v=${cacheVer.current}`
 
-  function handleTouchMove(e: React.TouchEvent) {
-    const touch = e.touches[0]
-    if (!touch) return
-    moveDrag(touch.clientX)
-  }
-
-  function handleTouchEnd() {
-    endDrag()
-  }
-
-  const mannequinSrc = gender === "female"
-    ? `/mannequin-female-${ROTATION_ANGLES[angleIndex]}.png?v=2`
-    : "/mannequin-male.png?v=2"
-
-  // 标记点
-  const rawMarkers = Object.entries(SLOT_MARKERS).map(([slot, pos]) => {
+  // 标记点（男生不显示连衣裙锚点）
+  const markerEntries = Object.entries(SLOT_MARKERS)
+    .filter(([slot]) => gender !== "male" || slot !== "dress")
+  const rawMarkers = markerEntries.map(([slot, pos]) => {
     let itemId: string | undefined
     if (slot === "accessories") {
       itemId = outfit.accessories[0]
@@ -172,29 +165,25 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     <div className="flex flex-col items-center w-full py-4 md:py-6 md:pb-6">
       <p className="text-[11px] text-warm-gray/60 mb-3 tracking-wide">
         {filledCount > 0
-          ? `已搭配 ${filledCount} 件 ✦ ${gender === "female" ? "左右滑动旋转 · " : ""}继续拖拽或点击下方卡片替换`
-          : `拖拽单品到人台 ✦ ${gender === "female" ? "在人台上左右滑动可旋转" : ""}`}
+          ? `已搭配 ${filledCount} 件 ✦ 左右滑动旋转 · 继续拖拽或点击下方卡片替换`
+          : `拖拽单品到人台 ✦ 在人台上左右滑动可旋转`}
       </p>
 
       <div
         ref={containerRef}
-        onPointerDown={gender === "female" ? handlePointerDown : undefined}
-        onPointerMove={gender === "female" ? handlePointerMove : undefined}
-        onPointerUp={gender === "female" ? handlePointerUp : undefined}
-        onPointerLeave={gender === "female" ? handlePointerUp : undefined}
-        onTouchStart={gender === "female" ? handleTouchStart : undefined}
-        onTouchMove={gender === "female" ? handleTouchMove : undefined}
-        onTouchEnd={gender === "female" ? handleTouchEnd : undefined}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         className={`relative w-full max-w-[220px] md:max-w-[420px] rounded-3xl transition-[box-shadow] duration-500
           overflow-hidden select-none
-          ${isDragging ? "cursor-grabbing shadow-lg" : gender === "female" ? "cursor-ew-resize" : ""}`}
+          ${isDragging ? "cursor-grabbing shadow-lg" : "cursor-ew-resize"}`}
         style={{ aspectRatio: "4/7", touchAction: "none" }}
       >
         {/* 预加载所有角度图片（隐藏） */}
-        {gender === "female" && ROTATION_ANGLES.map((angle) => (
+        {ROTATION_ANGLES.map((angle) => (
           <img
             key={`preload-${angle}`}
-            src={`/mannequin-female-${angle}.png?v=2`}
+            src={`/${mannequinPrefix}-${angle}.png?v=${cacheVer.current}`}
             alt=""
             className="hidden"
             draggable={false}
@@ -211,11 +200,11 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         >
           <img
             src={mannequinSrc}
-            alt={gender === "female" ? `人台 ${ROTATION_ANGLES[angleIndex]}°` : "男生人台"}
+            alt={`人台 ${ROTATION_ANGLES[angleIndex]}°`}
             className="w-full h-full object-contain select-none pointer-events-none transition-opacity duration-150"
             draggable={false}
             style={{
-              opacity: gender === "female" && !imagesLoaded.has(ROTATION_ANGLES[angleIndex]) ? 0.6 : 1,
+              opacity: !imagesLoaded.has(ROTATION_ANGLES[angleIndex]) ? 0.6 : 1,
             }}
           />
         </div>
@@ -251,17 +240,29 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         ))}
 
         {/* 角度指示器 */}
-        {gender === "female" && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex gap-1">
-            {ROTATION_ANGLES.map((_, i) => (
-              <span
-                key={i}
-                className={`w-1 h-1 rounded-full transition-all duration-200
-                  ${i === angleIndex ? "bg-charcoal/60 w-2.5" : "bg-charcoal/20"}`}
-              />
-            ))}
-          </div>
-        )}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex gap-1">
+          {ROTATION_ANGLES.map((_, i) => (
+            <span
+              key={i}
+              className={`w-1 h-1 rounded-full transition-all duration-200
+                ${i === angleIndex ? "bg-charcoal/60 w-2.5" : "bg-charcoal/20"}`}
+            />
+          ))}
+        </div>
+
+        {/* 角度标签 */}
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex gap-12">
+          {ANGLE_LABELS.map((label, i) => (
+            <span
+              key={i}
+              className={`text-[9px] transition-colors duration-200 ${
+                i === angleIndex ? "text-charcoal/60" : "text-charcoal/0"
+              }`}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
 
         {/* 拖拽方向箭头提示 */}
         {isDragging && Math.abs(visualShift) > 5 && (

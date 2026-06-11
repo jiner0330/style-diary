@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JS Test</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #fff; }
+    #indicator { padding: 16px; border-radius: 12px; text-align: center; font-size: 18px; }
+    .waiting { background: #FFF3CD; color: #856404; }
+    .ok { background: #D4EDDA; color: #155724; }
+    .fail { background: #F8D7DA; color: #721C24; }
+    input, button { display: block; width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
+    button { background: #E88D8D; color: white; border: none; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h2>JS 诊断</h2>
+  <div id="indicator" class="waiting">等待 JavaScript 执行...</div>
+  <form id="testForm">
+    <input name="email" placeholder="输入测试文本" autocomplete="off">
+    <input name="pass" type="text" placeholder="再输入一些文字">
+    <button type="submit">提交表单</button>
+  </form>
+  <div id="result" style="margin-top:12px;font-size:14px;"></div>
+
+  <script>
+    // 此脚本在页面加载时立即运行
+    document.getElementById('indicator').textContent = '✓ JavaScript 正常运行';
+    document.getElementById('indicator').className = 'ok';
+
+    var form = document.getElementById('testForm');
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var fd = new FormData(form);
+      document.getElementById('result').textContent =
+        '拦截成功！JS 有效。输入: ' + fd.get('email') + ' / ' + fd.get('pass');
+    });
+  </script>
+  <noscript>
+    <div id="indicator" class="fail">✗ JavaScript 未运行 — 浏览器可能禁用了 JS</div>
+  </noscript>
+</body>
+</html>

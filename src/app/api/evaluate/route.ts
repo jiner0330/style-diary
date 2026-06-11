@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { chat } from "@/lib/ai"
 import { queryRules, getCurrentSeason } from "@/lib/matching-rules"
 import { getItemById } from "@/lib/mock-data"
+import { requireAuth } from "@/lib/auth"
 
 interface OutfitSlot {
   dress: string | null
@@ -87,6 +88,11 @@ ${outfitDesc}
 }
 
 export async function POST(request: NextRequest) {
+  const userId = await requireAuth(request)
+  if (!userId) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
     const { outfit, scene } = body as { outfit: OutfitSlot; scene?: string }
@@ -171,11 +177,10 @@ export async function POST(request: NextRequest) {
     console.error("[evaluate] Error:", err)
     if (err instanceof SyntaxError) {
       return NextResponse.json(
-        { error: "AI 评价解析失败，请重试", raw: (err as Error).message },
+        { error: "AI 评价解析失败，请重试" },
         { status: 502 }
       )
     }
-    const message = err instanceof Error ? err.message : "未知错误"
-    return NextResponse.json({ error: `评价服务异常: ${message}` }, { status: 500 })
+    return NextResponse.json({ error: "评价服务异常，请稍后重试" }, { status: 500 })
   }
 }

@@ -4,9 +4,13 @@
  * 城市查询: https://geoapi.qweather.com
  */
 
+import https from "https"
+
 const QWEATHER_KEY = process.env.QWEATHER_API_KEY!
 const WEATHER_BASE = "https://devapi.qweather.com/v7/weather"
 const GEO_BASE = "https://geoapi.qweather.com/v2/city"
+
+const httpsAgent = new https.Agent({ rejectUnauthorized: false })
 
 export interface CurrentWeather {
   temp: string        // 温度 °C
@@ -85,9 +89,9 @@ export async function fetchWeather(lat: number, lon: number): Promise<WeatherDat
 
     // 并发：城市信息 + 当前天气 + 3日预报
     const [cityRes, nowRes, forecastRes] = await Promise.all([
-      fetch(`${GEO_BASE}/lookup?location=${location}&key=${QWEATHER_KEY}`, { signal: ctrl.signal }),
-      fetch(`${WEATHER_BASE}/now?location=${location}&key=${QWEATHER_KEY}`, { signal: ctrl.signal }),
-      fetch(`${WEATHER_BASE}/3d?location=${location}&key=${QWEATHER_KEY}`, { signal: ctrl.signal }),
+      fetch(`${GEO_BASE}/lookup?location=${location}&key=${QWEATHER_KEY}`, { signal: ctrl.signal, agent: httpsAgent } as any),
+      fetch(`${WEATHER_BASE}/now?location=${location}&key=${QWEATHER_KEY}`, { signal: ctrl.signal, agent: httpsAgent } as any),
+      fetch(`${WEATHER_BASE}/3d?location=${location}&key=${QWEATHER_KEY}`, { signal: ctrl.signal, agent: httpsAgent } as any),
     ])
 
     clearTimeout(t)

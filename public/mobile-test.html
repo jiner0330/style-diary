@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手机测试</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; background: #FAF7F4; }
+  button {
+    width: 100%; padding: 16px; font-size: 18px; border: none; border-radius: 12px;
+    background: #5C5C5C; color: white; margin: 8px 0; cursor: pointer;
+  }
+  #log { background: #E8DED1; border-radius: 12px; padding: 16px; margin-top: 16px; min-height: 100px; }
+  .green { background: #3A5A3A !important; }
+</style>
+</head>
+<body>
+  <h1>纯 HTML 测试</h1>
+  <p id="status" style="color:red">JS 未运行</p>
+  <button onclick="doClick()">点我测试</button>
+  <div id="log">等待点击...</div>
+
+  <script>
+    document.getElementById('status').textContent = 'JS 已运行 ✅';
+    document.getElementById('status').style.color = 'green';
+
+    var count = 0;
+    function doClick() {
+      count++;
+      var log = document.getElementById('log');
+      log.innerHTML = '✅ 按钮点击成功！计数: ' + count + '<br>时间: ' + new Date().toLocaleTimeString() + '<br>' + log.innerHTML;
+
+      // 也测试下 fetch
+      fetch('/test')
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+          log.innerHTML = '📡 fetch /test 成功: ' + html.length + ' 字节<br>' + log.innerHTML;
+        })
+        .catch(function(err) {
+          log.innerHTML = '❌ fetch 失败: ' + err.message + '<br>' + log.innerHTML;
+        });
+    }
+  </script>
+</body>
+</html>

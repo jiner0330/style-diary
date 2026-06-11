@@ -6,7 +6,7 @@ import type { ClothingItem } from "@/types"
 interface Props {
   item: ClothingItem
   isEquipped: boolean
-  /** 点击添加模式：点击即添加，无须拖拽 */
+  /** 点击添加模式：点击即添加，无须拖拽（移动端衣柜抽屉） */
   clickToAdd?: boolean
   onQuickAdd?: (item: ClothingItem) => void
 }
@@ -28,14 +28,20 @@ export default function ClothingCard({ item, isEquipped, clickToAdd, onQuickAdd 
     }
   }
 
+  // 移动端点击模式：不用 dnd-kit listeners，避免 touch-none 阻断点击事件
+  const dndProps = clickToAdd
+    ? {}
+    : { ...listeners, ...attributes }
+
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
-      {...attributes}
+      {...dndProps}
       style={style}
       suppressHydrationWarning
-      className={`relative rounded-xl border-2 transition-[border-color,box-shadow,opacity] cursor-grab active:cursor-grabbing touch-none
+      onClick={clickToAdd ? handleClick : undefined}
+      className={`relative rounded-xl border-2 transition-[border-color,box-shadow,opacity] cursor-grab active:cursor-grabbing
+        ${clickToAdd ? "" : "touch-none"}
         ${isDragging
           ? "border-rose opacity-60 shadow-lg scale-105"
           : isEquipped
@@ -45,11 +51,8 @@ export default function ClothingCard({ item, isEquipped, clickToAdd, onQuickAdd 
               : "border-warm-gray/30 hover:border-rose/40 opacity-100"
         }`}
     >
-      {/* 单品图片 + 点击热区（与拖拽分离，避免事件冲突） */}
-      <div
-        className="w-full aspect-[3/4] rounded-t-xl overflow-hidden bg-cream/30"
-        onClick={handleClick}
-      >
+      {/* 单品图片 */}
+      <div className="w-full aspect-[4/5] rounded-t-xl overflow-hidden bg-cream/30">
         <img
           src={item.image_url || ""}
           alt={item.name}
@@ -59,8 +62,8 @@ export default function ClothingCard({ item, isEquipped, clickToAdd, onQuickAdd 
       </div>
 
       {/* 单品名 */}
-      <div className="p-1.5 text-center">
-        <p className="text-[10px] text-charcoal truncate">{item.name}</p>
+      <div className="px-1 py-0.5 text-center">
+        <p className="text-[10px] text-charcoal truncate leading-tight">{item.name}</p>
       </div>
 
       {/* 已穿着标记 */}

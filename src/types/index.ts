@@ -43,6 +43,7 @@ export interface ClothingItem {
   id: string
   owner_id: string | null
   name: string
+  gender?: 'male' | 'female'
   category: ClothingCategory
   sub_category: string | null
   color: string

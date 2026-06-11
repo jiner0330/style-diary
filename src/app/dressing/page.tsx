@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
 import { enrichScene } from "@/lib/scene-assets"
+import { track } from "@/lib/analytics"
 import WardrobePanel from "@/components/wardrobe/WardrobePanel"
 import PersonalWardrobeBar from "@/components/wardrobe/PersonalWardrobeBar"
 import ModelDisplay from "@/components/outfit/ModelDisplay"
@@ -17,6 +18,11 @@ import ChatPanel from "@/components/chat/ChatPanel"
 import AmbientSound from "@/components/scene/AmbientSound"
 import type { Scene, ClothingItem, AIOutfitItem } from "@/types"
 import toast from "react-hot-toast"
+
+// UI 角度索引 → API 角度索引（0=正面，2=背面，跳过3/4侧）
+function toApiAngle(uiIndex: number): number {
+  return uiIndex === 0 ? 0 : 2
+}
 
 // 品类 → 自动路由到对应槽位，无需找热区
 const CATEGORY_TO_SLOT: Record<string, string> = {
@@ -35,7 +41,8 @@ function DressingContent() {
   const sceneId = searchParams.get("id")
 
   const [scene, setScene] = useState<Scene | null>(null)
-  const [userGender, setUserGender] = useState<"female" | "male">("female")
+  const [userGender, setUserGender] = useState<"female" | "male">()
+  const [profileLoading, setProfileLoading] = useState(true)
   const [userBodyType, setUserBodyType] = useState<string | null>(null)
   const [userStyleTags, setUserStyleTags] = useState<string[]>([])
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null)
@@ -51,6 +58,9 @@ function DressingContent() {
 	const [wardrobeExpanded, setWardrobeExpanded] = useState(false)
 	const [mobileTab, setMobileTab] = useState<"wardrobe" | "chat" | null>(null)
 	const [mobilePanelHeight, setMobilePanelHeight] = useState<"half" | "full">("half")
+	const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+	const [saveNameValue, setSaveNameValue] = useState("")
+	const saveInputRef = useRef<HTMLInputElement | null>(null)
 	const panelDragY = useRef(0)
 	const panelStartHeight = useRef<"half" | "full">("half")
   const [resultImages, setResultImages] = useState<Map<number, { url: string; prompt: string; promptZh?: string; mode?: string }>>(new Map())
@@ -61,6 +71,11 @@ function DressingContent() {
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // 点击添加模式
   const [pendingCategory, setPendingCategory] = useState<string | null>(null)
+  // 浮动完成按钮可拖动 — 用 transform GPU 合成，不触发布局
+  const [btnOffset, setBtnOffset] = useState({ tx: 0, ty: 0 })
+  const btnRef = useRef<HTMLDivElement | null>(null)
+  const btnDragging = useRef(false)
+  const btnDrag = useRef({ startX: 0, startY: 0, startTX: 0, startTY: 0, moved: false })
 
   const outfit = useOutfitStore((s) => s.outfit)
   // 搭配变更时清除旧图片缓存并中止进行中的生图任务
@@ -80,12 +95,61 @@ function DressingContent() {
   const history = useOutfitStore((s) => s.history)
   const addGenRecord = useOutfitStore((s) => s.addGenRecord)
   const generationHistory = useOutfitStore((s) => s.generationHistory)
-  const saveOutfit = useOutfitStore((s) => s.saveOutfit)
+  const saveOutfitLocal = useOutfitStore((s) => s.saveOutfit)
   const savedOutfits = useOutfitStore((s) => s.savedOutfits)
+
+  // 按当前场景 + 性别过滤记录
+  const resolvedGender = userGender || "female"
+  const sceneSavedOutfits = savedOutfits.filter((s) => s.sceneId === sceneId && s.gender === resolvedGender)
+  const sceneGenerationHistory = generationHistory.filter((g) => g.sceneId === sceneId && g.gender === resolvedGender)
+
+  // 保存搭配到 localStorage + Supabase（场景解锁需要 outfit 记录）
+  async function saveOutfit(name: string) {
+    saveOutfitLocal(name, sceneId, resolvedGender)
+    if (!sceneId) return
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error("请先登录，否则保存记录不会计入场景解锁")
+        return
+      }
+      const slots: Record<string, string | string[] | null> = {
+        user_id: user.id,
+        name,
+        scene_id: sceneId,
+        gender: resolvedGender,
+        accessories: outfit.accessories.length > 0 ? outfit.accessories : null,
+      }
+      for (const slot of ["dress", "top", "bottom", "outerwear", "shoes", "bag"]) {
+        slots[slot] = outfit[slot as keyof typeof outfit] as string | null
+      }
+      await supabase.from("outfits").insert(slots)
+    } catch (err) {
+      console.warn("[dressing] save to outfits table failed:", err)
+    }
+  }
+
+  // 打开保存弹窗（替代 prompt，iOS Safari 上 prompt 不可靠）
+  function triggerSaveDialog(defaultName: string) {
+    setSaveNameValue(defaultName)
+    setSaveDialogOpen(true)
+    setTimeout(() => saveInputRef.current?.focus(), 100)
+  }
+
+  function confirmSave() {
+    const name = saveNameValue.trim()
+    if (name) {
+      saveOutfit(name)
+      track("outfit_save", { sceneId, properties: { name } })
+      toast.success(`已保存「${name}」`)
+    }
+    setSaveDialogOpen(false)
+  }
   const deleteOutfit = useOutfitStore((s) => s.deleteOutfit)
   const loadOutfit = useOutfitStore((s) => s.loadOutfit)
   const wearSet = useOutfitStore((s) => s.wearSet)
   const initFromStorage = useOutfitStore((s) => s.initFromStorage)
+  const mergeOutfits = useOutfitStore((s) => s.mergeOutfits)
 
   // 客户端初始化 localStorage
   useEffect(() => { initFromStorage() }, [initFromStorage])
@@ -109,21 +173,62 @@ function DressingContent() {
 
   // 加载场景 + 用户画像
   useEffect(() => {
+    // 切换场景时清空上一个场景的搭配状态
+    useOutfitStore.getState().clearAll()
     async function load() {
       // 场景
       if (sceneId) {
         const { data: sceneData } = await supabase.from("scenes").select("*").eq("id", sceneId).single()
-        if (sceneData) setScene(enrichScene(sceneData))
+        if (sceneData) {
+          setScene(enrichScene(sceneData))
+          track("scene_enter", { sceneId: sceneData.id, properties: { sceneName: sceneData.name } })
+        }
       }
       // 用户画像
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase.from("user_profiles")
-          .select("gender, body_type, style_tags").eq("user_id", user.id).single()
-        if (profile?.gender) setUserGender(profile.gender)
-        if (profile?.body_type) setUserBodyType(profile.body_type)
-        if (profile?.style_tags) setUserStyleTags(profile.style_tags)
+      // 未登录 → 跳转登录页
+      if (!user) {
+        router.replace(`/auth?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+        return
       }
+      const { data: profile } = await supabase.from("user_profiles")
+        .select("gender, body_type, style_tags").eq("user_id", user.id).single()
+      setUserGender(profile?.gender || "female")
+      if (profile?.body_type) setUserBodyType(profile.body_type)
+      if (profile?.style_tags) setUserStyleTags(profile.style_tags)
+
+      // 跨设备同步：从 Supabase 拉取保存方案，合并到本地
+      try {
+        const { data: serverOutfits, error: syncErr } = await supabase
+          .from("outfits")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(30)
+        if (!syncErr && serverOutfits && serverOutfits.length > 0) {
+          const converted = serverOutfits.map((row: any) => ({
+            id: row.id || `sv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: row.name || "",
+            outfit: {
+              dress: row.dress || null,
+              top: row.top || null,
+              bottom: row.bottom || null,
+              outerwear: row.outerwear || null,
+              shoes: row.shoes || null,
+              bag: row.bag || null,
+              accessories: Array.isArray(row.accessories) ? row.accessories : [],
+            },
+            sceneId: row.scene_id || null,
+            gender: (row.gender || profile?.gender || "female") as "female" | "male",
+            createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+          }))
+          mergeOutfits(converted)
+        }
+      } catch (e) {
+        console.warn("[dressing] 同步服务端方案失败:", e)
+      }
+
+      setProfileLoading(false)
     }
     load()
   }, [sceneId])
@@ -146,6 +251,7 @@ function DressingContent() {
     setPendingCategory(null)
     setDrawerOpen(false)
     setMobileTab(null)
+    track("outfit_item_add", { sceneId, properties: { itemId: item.id, category } })
     toast.success(`已添加 ${item.name}`)
   }
 
@@ -193,6 +299,8 @@ function DressingContent() {
   const [genStage, setGenStage] = useState<"connecting" | "generating" | "processing">("connecting")
   const skipReviewRef = useRef(false)
   const generatedByAI = useRef(false)
+  const genStartTimeRef = useRef(0)
+  const celebratedGenRef = useRef<number | null>(null)
 
   const hasAnyItem = !!outfit.dress || !!outfit.top || !!outfit.bottom || !!outfit.outerwear || !!outfit.shoes || !!outfit.bag || outfit.accessories.length > 0
 
@@ -209,6 +317,7 @@ function DressingContent() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "评价失败")
       setReviewData(data)
+      track("evaluation_complete", { sceneId, properties: { totalScore: data.totalScore } })
     } catch (err: any) {
       console.warn("[evaluate] 评价失败:", err.message)
       // 评价失败不阻塞，静默处理
@@ -237,15 +346,21 @@ function DressingContent() {
             next.set(angleIdx, { url: data.imageUrl, prompt: data.prompt || "", promptZh: data.promptZh, mode: data.mode || "text_only" })
             return next
           })
+          track("generation_complete", { sceneId, properties: { angleIndex: angleIdx, mode: data.mode || "text_only" } })
           addGenRecord({
             imageUrl: data.imageUrl,
             prompt: data.prompt || "",
             mode: data.mode || "unknown",
+            sceneId,
+            gender: resolvedGender,
           })
-          if (!skipReviewRef.current && !generatedByAI.current && !reviewLoading && !reviewData) evaluateOutfit()
+          // 生图完成自动弹出结果，同时确保评价已触发
+          setShowResult(true)
+          if (!generatedByAI.current && !reviewLoading && !reviewData) evaluateOutfit()
         } else if (data.status === "error") {
           setGenStatus("error")
           setGenError(data.error || "生成失败")
+          track("generation_error", { sceneId, properties: { error: data.error || "unknown" } })
         }
       } catch {
         // 网络抖动，继续轮询
@@ -266,7 +381,10 @@ function DressingContent() {
     skipReviewRef.current = skipReview
     if (skipReview) generatedByAI.current = true
 
-    if (resultImages.has(angleIdx)) {
+    // 将 UI 角度索引映射为 API 角度索引（跳过3/4侧）
+    const apiAngle = toApiAngle(angleIdx)
+
+    if (resultImages.has(apiAngle)) {
       setResultAngle(angleIdx)
       setShowResult(true)
       return
@@ -274,15 +392,17 @@ function DressingContent() {
 
     setGenStatus("generating")
     setGenError(null)
-    setGeneratingAngle(angleIdx)
-    generatingAngleRef.current = angleIdx
+    setGeneratingAngle(apiAngle)
+    generatingAngleRef.current = apiAngle
     setResultAngle(angleIdx)
+    genStartTimeRef.current = Date.now()
+    track("generation_start", { sceneId, properties: { angleIndex: apiAngle, itemCount: items.length } })
 
     try {
       const res = await fetch("/api/generate-outfit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gender: userGender, items, angleIndex: angleIdx }),
+        body: JSON.stringify({ gender: userGender, items, angleIndex: apiAngle }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "生成失败")
@@ -296,13 +416,15 @@ function DressingContent() {
         setGeneratingAngle(null)
         setResultImages((prev) => {
           const next = new Map(prev)
-          next.set(angleIdx, { url: data.imageUrl, prompt: data.prompt || "", promptZh: data.promptZh, mode: data.mode || "text_only" })
+          next.set(apiAngle, { url: data.imageUrl, prompt: data.prompt || "", promptZh: data.promptZh, mode: data.mode || "text_only" })
           return next
         })
         addGenRecord({
           imageUrl: data.imageUrl,
           prompt: data.prompt || "",
           mode: data.mode || "unknown",
+          sceneId,
+          gender: resolvedGender,
         })
         if (!skipReview && !generatedByAI.current && !reviewLoading) evaluateOutfit()
       }
@@ -319,30 +441,65 @@ function DressingContent() {
     const items = collectItems()
     if (items.length === 0) { toast.error("请先搭配至少一件单品"); return }
 
-    if (generatedByAI.current) {
-      // ChatPanel 生成的搭配直接生图，不评价
-      await generateForAngle(angleIndex, { skipReview: true })
+    // 如果当前角度已有结果，直接展示，不重复生成和评价
+    const apiAngle = toApiAngle(angleIndex)
+    if (resultImages.has(apiAngle)) {
+      setShowResult(true)
       return
     }
 
+    // 用户手动点击"完成搭配"，重置 AI 标记以触发评价
+    generatedByAI.current = false
+
     const evalPromise = evaluateOutfit()
     await generateForAngle(angleIndex)
+
+    // 后台预生成另一个角度，用户切换时秒出
+    const otherUiAngle = angleIndex === 0 ? 1 : 0
+    fetch("/api/generate-outfit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gender: userGender, items, angleIndex: toApiAngle(otherUiAngle) }),
+    }).catch(() => {})
+
     await evalPromise
   }
 
   function handleViewResult() {
     setShowResult(true)
+    if (!reviewData && !reviewLoading && !generatedByAI.current) evaluateOutfit()
+    track("result_view", { sceneId })
+  }
+
+  function handleViewProgress() {
+    setShowResult(true)
+    if (!reviewData && !reviewLoading && !generatedByAI.current) evaluateOutfit()
   }
 
   function handleRetry() {
     if (generatingAngle !== null) {
-      generateForAngle(generatingAngle)
+      // generatingAngle 是 API 角度，转回 UI 角度
+      const uiAngle = generatingAngle === 2 ? 1 : 0
+      generateForAngle(uiAngle)
     }
+  }
+
+  function handleDragEnd(event: { active: { data: { current?: { item?: ClothingItem } } } }) {
+    const item = event.active?.data?.current?.item
+    if (!item) return
+    const category = item.category
+    if (category === "accessory") {
+      addAccessory(item.id)
+    } else {
+      const slot = CATEGORY_TO_SLOT[category] as "dress" | "top" | "bottom" | "outerwear" | "shoes" | "bag" | undefined
+      if (slot) setSlot(slot, item.id)
+    }
+    toast.success(`已添加 ${item.name}`)
   }
 
   return (
     <>
-    <DndContext>
+    <DndContext onDragEnd={handleDragEnd}>
       <div className="flex flex-col flex-1 h-[100dvh]">
         {/* 顶部操作栏 */}
         <header className="flex items-center gap-3 px-4 py-3 bg-soft-white border-b border-warm-gray/20">
@@ -357,7 +514,7 @@ function DressingContent() {
             👗
           </button>
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/scenes')}
             className="text-sm text-warm-gray hover:text-rose transition-colors"
           >
             ← 返回
@@ -374,8 +531,7 @@ function DressingContent() {
               onClick={() => {
                 const hasItems = outfit.dress || outfit.top || outfit.bottom
                 if (!hasItems) { toast.error("请先搭配至少一件单品"); return }
-                const name = prompt("给这个搭配方案起个名字：", `搭配 ${new Date().toLocaleTimeString()}`)
-                if (name) { saveOutfit(name); toast.success(`已保存「${name}」`) }
+                triggerSaveDialog(`搭配 ${new Date().toLocaleTimeString()}`)
               }}
               className="text-[11px] px-3 py-1.5 rounded-full border border-warm-gray/30 text-warm-gray hover:text-rose hover:border-rose/30 transition-colors"
             >
@@ -389,16 +545,16 @@ function DressingContent() {
                   showHistory ? "border-rose/40 text-rose" : "border-warm-gray/30 text-warm-gray"
                 }`}
               >
-                📋 记录 ({generationHistory.length + savedOutfits.length})
+                📋 记录 ({sceneGenerationHistory.length + sceneSavedOutfits.length})
               </button>
               {showHistory && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowHistory(false)} />
                   <div className="absolute right-0 top-full mt-2 w-72 max-h-80 overflow-y-auto bg-soft-white rounded-2xl shadow-xl border border-warm-gray/20 z-50 p-3">
-                    {savedOutfits.length > 0 && (
+                    {sceneSavedOutfits.length > 0 && (
                       <>
                         <p className="text-[10px] text-warm-gray/50 uppercase tracking-wide mb-2">保存的方案</p>
-                        {savedOutfits.slice(0, 8).map((s) => (
+                        {sceneSavedOutfits.slice(0, 8).map((s) => (
                           <div key={s.id} className="flex items-center gap-2 py-1.5 border-b border-warm-gray/10 last:border-0">
                             <button
                               onClick={() => { loadOutfit(s.id); setShowHistory(false); toast.success(`已加载「${s.name}」`) }}
@@ -416,10 +572,10 @@ function DressingContent() {
                         ))}
                       </>
                     )}
-                    {generationHistory.length > 0 && (
+                    {sceneGenerationHistory.length > 0 && (
                       <>
                         <p className="text-[10px] text-warm-gray/50 uppercase tracking-wide mb-2 mt-3">生成记录</p>
-                        {generationHistory.slice(0, 6).map((g) => (
+                        {sceneGenerationHistory.slice(0, 6).map((g) => (
                           <div key={g.id} className="flex items-center gap-2 py-1.5 border-b border-warm-gray/10 last:border-0">
                             <img src={g.imageUrl} className="w-8 h-10 rounded-md object-cover" alt="" />
                             <div className="flex-1 min-w-0">
@@ -437,7 +593,7 @@ function DressingContent() {
                         ))}
                       </>
                     )}
-                    {savedOutfits.length === 0 && generationHistory.length === 0 && (
+                    {sceneSavedOutfits.length === 0 && sceneGenerationHistory.length === 0 && (
                       <p className="text-xs text-warm-gray/50 text-center py-4">暂无记录</p>
                     )}
                   </div>
@@ -453,6 +609,7 @@ function DressingContent() {
           {wardrobeExpanded && (
             <div className="hidden md:block md:w-[35%] lg:w-[30%] h-full overflow-hidden relative border-r border-warm-gray/20">
               <WardrobePanel
+                gender={userGender}
                 pendingCategory={pendingCategory}
                 onItemClick={handleQuickAdd}
                 onUndo={undo}
@@ -484,11 +641,17 @@ function DressingContent() {
               </div>
             )}
             <div className="relative z-10 flex flex-col items-center w-full">
-            <ModelDisplay gender={userGender} angleIndex={angleIndex} onAngleChange={setAngleIndex} />
+            {profileLoading ? (
+              <div className="flex items-center justify-center w-full" style={{ aspectRatio: "4/7", maxWidth: "220px" }}>
+                <div className="w-10 h-10 rounded-full border-[3px] border-warm-gray/15 border-t-rose animate-spin" />
+              </div>
+            ) : (
+            <ModelDisplay gender={userGender || "female"} angleIndex={angleIndex} onAngleChange={setAngleIndex} />
+            )}
 
             {/* 移动端：搭配清单卡片 */}
             <div className="md:hidden w-full">
-              <OutfitBar compact onAddClick={handleAddClick} />
+              <OutfitBar compact onAddClick={handleAddClick} gender={userGender} />
             </div>
 
             {/* 移动端：空态引导提示 */}
@@ -502,22 +665,82 @@ function DressingContent() {
               </div>
             )}
 
-            {/* 移动端：浮动完成按钮 */}
+            {/* 移动端：浮动完成按钮（可拖动） */}
             {hasAnyItem && !mobileTab && (
-              <div className="md:hidden fixed bottom-20 right-4 z-30 flex flex-col items-center gap-1">
+              <div
+                ref={btnRef}
+                className="md:hidden fixed z-30 flex flex-col items-center gap-1 select-none"
+                style={{
+                  right: "16px",
+                  bottom: "80px",
+                  transform: `translate3d(${btnOffset.tx}px, ${btnOffset.ty}px, 0)`,
+                  willChange: "transform",
+                  touchAction: "none",
+                }}
+                onPointerDown={(e) => {
+                  btnDragging.current = true
+                  btnDrag.current.startX = e.clientX
+                  btnDrag.current.startY = e.clientY
+                  btnDrag.current.startTX = btnOffset.tx
+                  btnDrag.current.startTY = btnOffset.ty
+                  btnDrag.current.moved = false
+                  const el = btnRef.current
+                  if (el) el.style.transition = "none"
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                }}
+                onPointerMove={(e) => {
+                  if (!btnDragging.current) return
+                  const dx = e.clientX - btnDrag.current.startX
+                  const dy = e.clientY - btnDrag.current.startY
+                  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                    btnDrag.current.moved = true
+                  }
+                  if (!btnDrag.current.moved) return
+                  let newTX = btnDrag.current.startTX + dx
+                  let newTY = btnDrag.current.startTY + dy
+                  // 边界约束：按钮不超出屏幕
+                  const maxTX = 16
+                  const minTX = -(window.innerWidth - 72)
+                  const maxTY = 80
+                  const minTY = -(window.innerHeight - 230)
+                  newTX = Math.max(minTX, Math.min(maxTX, newTX))
+                  newTY = Math.max(minTY, Math.min(maxTY, newTY))
+                  const el = btnRef.current
+                  if (el) {
+                    el.style.transform = `translate3d(${newTX}px, ${newTY}px, 0)`
+                  }
+                }}
+                onPointerUp={(e) => {
+                  btnDragging.current = false
+                  const el = btnRef.current
+                  if (el) {
+                    el.style.transition = ""
+                    // 从 DOM transform 读取最终位移，回写 state
+                    const t = el.style.transform
+                    const match = t.match(/translate3d\(([^,]+)px,\s*([^,]+)px/)
+                    if (match) {
+                      setBtnOffset({ tx: parseFloat(match[1]), ty: parseFloat(match[2]) })
+                    }
+                  }
+                }}
+              >
                 <button
-                  onClick={handleCompleteOutfit}
-                  disabled={genStatus === "generating"}
+                  onClick={() => {
+                    if (btnDrag.current.moved) return
+                    if (genStatus === "generating") { handleViewProgress(); return }
+                    if (genStatus === "done") { handleViewResult(); return }
+                    handleCompleteOutfit()
+                  }}
                   className="w-14 h-14 rounded-full bg-charcoal text-white shadow-xl
                              flex items-center justify-center text-xl
-                             active:scale-95 transition-transform disabled:opacity-50
+                             active:scale-95 transition-transform
                              animate-pulse"
                 >
                   {genStatus === "generating" ? (
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : "✨"}
                 </button>
-                <span className="text-[10px] text-charcoal/60 font-medium bg-soft-white/90 px-2 py-0.5 rounded-full shadow-sm">
+                <span className="text-[10px] text-charcoal/60 font-medium bg-soft-white/90 px-2 py-0.5 rounded-full shadow-sm pointer-events-none">
                   完成搭配
                 </span>
               </div>
@@ -544,26 +767,32 @@ function DressingContent() {
           <PersonalWardrobeBar onItemClick={handleQuickAdd} />
           <div className="flex items-center justify-between gap-4 pb-4 pt-2">
             <div className="flex-1 overflow-x-auto">
-              <OutfitBar />
+              <OutfitBar gender={userGender} />
             </div>
             <button
-              onClick={handleCompleteOutfit}
-              disabled={genStatus === "generating"}
-              className="flex-shrink-0 px-12 py-2.5 rounded-2xl bg-charcoal text-soft-white text-sm
-                         font-medium tracking-wide active:scale-[0.98] transition-all
-                         disabled:opacity-60 disabled:scale-100"
+              onClick={
+                genStatus === "generating" ? handleViewProgress
+                : genStatus === "done" ? handleViewResult
+                : handleCompleteOutfit
+              }
+              className="flex-shrink-0 flex items-center gap-2 px-12 py-2.5 rounded-2xl bg-charcoal text-soft-white text-sm
+                         font-medium tracking-wide active:scale-[0.98] transition-all"
             >
-              {genStatus === "generating" ? "生成中..." : "完成搭配 ✨"}
+              {genStatus === "generating" && (
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              )}
+              完成搭配 ✨
             </button>
           </div>
         </div>
 
         {/* 移动端：衣橱底部抽屉 + 遮罩 */}
         {drawerOpen && (
-          <div className="fixed inset-0 z-40 md:hidden">
+          <div className="fixed inset-0 z-[70] md:hidden">
             <div className="absolute inset-0 bg-black/30" onClick={() => setDrawerOpen(false)} />
             <div className="absolute inset-x-0 bottom-0 h-[50vh]">
               <WardrobePanel
+                gender={userGender}
                 isDrawerOpen={drawerOpen}
                 onClose={() => { setDrawerOpen(false); setPendingCategory(null) }}
                 pendingCategory={pendingCategory}
@@ -583,6 +812,7 @@ function DressingContent() {
         error={genError || undefined}
         onViewResult={handleViewResult}
         onRetry={handleRetry}
+        onViewProgress={handleViewProgress}
       />
 
       {/* 移动端底部安全区占位 */}
@@ -592,12 +822,13 @@ function DressingContent() {
     {/* 移动端：底部双 Tab 面板 */}
     <div className="lg:hidden fixed inset-x-0 bottom-0 z-40">
       {/* 面板内容 */}
-      {mobileTab && (
-        <div
-          className={`bg-soft-white rounded-t-3xl shadow-2xl border-t border-warm-gray/15 overflow-hidden transition-all duration-300 ${
-            mobilePanelHeight === "half" ? "h-[50vh]" : "h-[85vh]"
-          }`}
-        >
+      <div
+        className={`bg-soft-white rounded-t-3xl shadow-2xl border-t border-warm-gray/15 overflow-hidden transition-all duration-300 ${
+          mobileTab
+            ? mobilePanelHeight === "half" ? "h-[50vh]" : "h-[85vh]"
+            : "h-0 border-t-0"
+        }`}
+      >
           {/* 拖拽手柄 */}
           <div
             className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing touch-none"
@@ -618,47 +849,46 @@ function DressingContent() {
             <div className="w-10 h-1 rounded-full bg-warm-gray/30" />
           </div>
 
-          {mobileTab === "wardrobe" ? (
-            <div className="h-full overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3">
-                <h3 className="text-sm font-medium text-charcoal">我的衣橱</h3>
-                <button onClick={() => setMobileTab(null)} className="text-warm-gray hover:text-rose text-sm">
-                  收起
-                </button>
+          {/* 衣橱面板 */}
+          <div className={`h-full overflow-hidden flex flex-col ${mobileTab === "wardrobe" ? "" : "hidden"}`}>
+            <div className="flex items-center justify-between px-4 py-3">
+              <h3 className="text-sm font-medium text-charcoal">我的衣橱</h3>
+              <button onClick={() => setMobileTab(null)} className="text-warm-gray hover:text-rose text-sm">
+                收起
+              </button>
+            </div>
+            <PersonalWardrobeBar compact onItemClick={handleQuickAdd} />
+            <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 gap-4">
+              <div className="w-16 h-16 rounded-full bg-rose/5 flex items-center justify-center">
+                <span className="text-2xl">📸</span>
               </div>
-              <PersonalWardrobeBar compact onItemClick={handleQuickAdd} />
-              <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 gap-4">
-                <div className="w-16 h-16 rounded-full bg-rose/5 flex items-center justify-center">
-                  <span className="text-2xl">📸</span>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-charcoal font-medium mb-1">打造你的专属衣橱</p>
-                  <p className="text-xs text-warm-gray/50 leading-relaxed">
-                    拍照或上传你的衣服照片<br />
-                    搭搭就能根据你的真实衣橱做搭配
-                  </p>
-                </div>
+              <div className="text-center">
+                <p className="text-sm text-charcoal font-medium mb-1">打造你的专属衣橱</p>
+                <p className="text-xs text-warm-gray/50 leading-relaxed">
+                  拍照或上传你的衣服照片<br />
+                  搭搭就能根据你的真实衣橱做搭配
+                </p>
               </div>
             </div>
-          ) : (
-            <div className="h-full overflow-hidden">
-              <ChatPanel
-                currentOutfit={outfit}
-                onClose={() => setMobileTab(null)}
-                onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
-                onWearSet={(items) => {
-                  wearSet(items)
-                }}
-                userCoords={userCoords}
-                gender={userGender}
-                bodyType={userBodyType}
-                styleTags={userStyleTags}
-                autoFocus
-              />
-            </div>
-          )}
+          </div>
+
+          {/* 搭搭聊天 — 常驻挂载，用 hidden 切换，不丢对话 */}
+          <div className={`h-full overflow-hidden ${mobileTab === "chat" ? "" : "hidden"}`}>
+            <ChatPanel
+              currentOutfit={outfit}
+              onClose={() => setMobileTab(null)}
+              onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
+              onWearSet={(items) => {
+                wearSet(items)
+              }}
+              userCoords={userCoords}
+              gender={userGender}
+              bodyType={userBodyType}
+              styleTags={userStyleTags}
+              autoFocus
+            />
+          </div>
         </div>
-      )}
 
       {/* Tab 切换栏 */}
       <div className="flex items-center gap-2 px-4 py-2 bg-soft-white border-t border-warm-gray/20">
@@ -691,7 +921,7 @@ function DressingContent() {
       </div>
     </div>
 
-    {/* AI 生成结果弹窗 · 多角度 */}
+    {/* AI 生成结果弹窗 */}
     {showResult && (
       <ResultModal
         resultImages={resultImages}
@@ -699,6 +929,14 @@ function DressingContent() {
         generatingAngle={generatingAngle}
         genStage={genStage}
         elapsed={elapsed}
+        gender={userGender!}
+        shouldCelebrate={
+          genStartTimeRef.current !== 0 &&
+          celebratedGenRef.current !== genStartTimeRef.current
+        }
+        onCelebrated={() => {
+          celebratedGenRef.current = genStartTimeRef.current
+        }}
         onAngleChange={(i) => {
           setResultAngle(i)
         }}
@@ -709,16 +947,53 @@ function DressingContent() {
           if (!reviewData && !reviewLoading) evaluateOutfit()
           generateForAngle(i)
         }}
-        onClose={() => { setShowResult(false); setReviewData(null) }}
+        onClose={() => { setShowResult(false) }}
         reviewData={reviewData}
         reviewLoading={reviewLoading}
         onSave={() => {
           const hasItems = outfit.dress || outfit.top || outfit.bottom
           if (!hasItems) { toast.error("请先搭配至少一件单品"); return }
-          const name = prompt("给这个方案起个名字：")
-          if (name) { saveOutfit(name); toast.success(`已保存「${name}」`) }
+          triggerSaveDialog("")
         }}
       />
+    )}
+
+    {/* 保存搭配弹窗（替代 prompt，iOS Safari 兼容） */}
+    {saveDialogOpen && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40" onClick={() => setSaveDialogOpen(false)} />
+        <div className="relative bg-soft-white rounded-2xl shadow-xl w-full max-w-xs p-6 z-10">
+          <h3 className="text-sm font-medium text-charcoal mb-4">保存搭配方案</h3>
+          <input
+            ref={saveInputRef}
+            type="text"
+            value={saveNameValue}
+            onChange={(e) => setSaveNameValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') confirmSave() }}
+            placeholder="给这个搭配方案起个名字"
+            className="w-full px-3 py-2.5 text-sm rounded-xl border border-warm-gray/30 bg-cream/30
+                       text-charcoal placeholder:text-warm-gray/40 outline-none
+                       focus:border-rose/40 transition-colors"
+            autoFocus
+          />
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => setSaveDialogOpen(false)}
+              className="flex-1 py-2 rounded-xl text-sm text-warm-gray border border-warm-gray/20
+                         hover:bg-warm-gray/5 transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={confirmSave}
+              className="flex-1 py-2 rounded-xl text-sm text-white bg-charcoal
+                         hover:bg-charcoal/90 transition-colors"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
     )}
   </>
   )

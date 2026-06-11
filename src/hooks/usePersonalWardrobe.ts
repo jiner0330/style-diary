@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { getAuthToken } from "@/lib/supabase"
-import { registerPersonalItems } from "@/lib/mock-data"
+import { registerPersonalItems, removePersonalItem } from "@/lib/mock-data"
 import type { ClothingItem } from "@/types"
 
+// 模块级缓存：跨组件挂载保持，避免每次都从 loading 骨架开始
+let cachedItems: ClothingItem[] | null = null
+
 export function usePersonalWardrobe() {
-  const [items, setItems] = useState<ClothingItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState<ClothingItem[]>(cachedItems || [])
+  const [loading, setLoading] = useState(!cachedItems)
 
   const fetchItems = useCallback(async () => {
     try {
@@ -27,6 +30,7 @@ export function usePersonalWardrobe() {
       }
       const data = await res.json()
       const fetched = data.items || []
+      cachedItems = fetched
       setItems(fetched)
       // 注册到统一查找表
       if (fetched.length > 0) registerPersonalItems(fetched)
@@ -37,9 +41,24 @@ export function usePersonalWardrobe() {
     }
   }, [])
 
+  const deleteItem = useCallback(async (id: string) => {
+    const token = await getAuthToken()
+    if (!token) return false
+    const res = await fetch(`/api/wardrobe?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return false
+    // 从缓存、统一查找表和状态中移除
+    removePersonalItem(id)
+    cachedItems = cachedItems?.filter((i) => i.id !== id) || null
+    setItems((prev) => prev.filter((i) => i.id !== id))
+    return true
+  }, [])
+
   useEffect(() => {
     fetchItems()
   }, [fetchItems])
 
-  return { items, loading, refresh: fetchItems }
+  return { items, loading, refresh: fetchItems, deleteItem }
 }

@@ -19,6 +19,7 @@
 
 # generated images
 /public/outputs/
+/public/_mannequin-backup/
 
 # production
 /build

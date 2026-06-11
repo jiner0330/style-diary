@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
 import type { Scene } from "@/types"
+import SceneIllustration from "@/components/scene/SceneIllustration"
 import toast from "react-hot-toast"
 
 export default function ScenesPage() {
@@ -22,7 +23,18 @@ export default function ScenesPage() {
       const data = await res.json()
       setScenes(data.scenes || [])
 
-      // 用户数据从 Supabase 加载（需要客户端 session）
+      // 收集已参与的场景：生图记录（localStorage）+ 保存记录（Supabase）
+      const engagedScenes = new Set<string>()
+
+      // 1. 从 localStorage 生图记录中提取场景
+      if (typeof window !== "undefined") {
+        try {
+          const gh = JSON.parse(localStorage.getItem("sd_gen_history") || "[]")
+          gh.forEach((g: any) => { if (g.sceneId) engagedScenes.add(g.sceneId) })
+        } catch { /* ignore */ }
+      }
+
+      // 2. 登录用户额外计入 Supabase 中的保存记录
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: outfits, error: outfitsErr } = await supabase
@@ -31,10 +43,11 @@ export default function ScenesPage() {
           .eq("user_id", user.id)
 
         if (!outfitsErr && outfits) {
-          const uniqueScenes = new Set(outfits.map(o => o.scene_id))
-          setCompletedCount(uniqueScenes.size)
+          outfits.forEach((o) => { if (o.scene_id) engagedScenes.add(o.scene_id) })
         }
       }
+
+      setCompletedCount(engagedScenes.size)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "加载失败"
       setError(message)
@@ -118,15 +131,8 @@ function SceneCard({ scene }: { scene: Scene }) {
   return (
     <div className="rounded-2xl bg-white/60 border border-warm-gray/30 p-4
                     h-full hover:border-rose/30 transition-colors">
-      <div className="w-full aspect-[3/4] rounded-xl bg-cream/50 mb-3
-                      flex items-center justify-center text-3xl">
-        {scene.mood_tags?.[0] === '松弛' && '🥂'}
-        {scene.mood_tags?.[0] === '安静' && '📖'}
-        {scene.mood_tags?.[0] === '自信' && '💼'}
-        {scene.mood_tags?.[0] === '期待' && '💕'}
-        {scene.mood_tags?.[0] === '表达' && '🎨'}
-        {scene.mood_tags?.[0] === '自由' && '🌊'}
-        {scene.mood_tags?.[0] === '释然' && '✨'}
+      <div className="w-full aspect-[3/4] rounded-xl overflow-hidden mb-3">
+        <SceneIllustration name={scene.name} moodTags={scene.mood_tags || []} variant="card" illustrationUrl={scene.illustration_url} />
       </div>
       <h3 className="font-medium text-charcoal text-sm">{scene.name}</h3>
       <div className="flex flex-wrap gap-1 mt-1.5">

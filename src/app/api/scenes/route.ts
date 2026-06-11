@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { enrichScene } from "@/lib/scene-assets"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export async function GET() {
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
     const { data, error } = await supabase
       .from("scenes")
@@ -15,7 +16,9 @@ export async function GET() {
 
     if (error) throw error
 
-    return NextResponse.json({ scenes: data || [] })
+    const scenes = (data || []).map(enrichScene)
+
+    return NextResponse.json({ scenes })
   } catch (err) {
     console.error("[scenes]", err)
     return NextResponse.json(
