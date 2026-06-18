@@ -1,9 +1,4 @@
 {
   "buildCommand": "next build --webpack",
-  "installCommand": "npm install",
-  "functions": {
-    "api/**/*": {
-      "regions": ["hkg1"]
-    }
-  }
+  "installCommand": "npm install"
 }
