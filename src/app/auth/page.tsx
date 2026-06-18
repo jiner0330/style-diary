@@ -90,12 +90,29 @@ function AuthForm() {
       const verifyData = await verifyRes.json()
       if (!verifyRes.ok) { setError(verifyData.error); setPhoneLoading(false); return }
 
-      // 2. 用返回的凭据登录 Supabase
+      // 2. 用返回的凭据登录 Supabase（客户端直连，绕过 hkg1 DNS 问题）
       const { data, error: signInErr } = await supabase.auth.signInWithPassword({
         email: verifyData.email,
         password: verifyData.password,
       })
-      if (signInErr) { setError(signInErr.message); setPhoneLoading(false); return }
+      if (signInErr) {
+        // 用户不存在 → 客户端注册（Supabase 上海直连，不走 Vercel）
+        if (signInErr.message?.includes("Invalid") || signInErr.status === 400) {
+          const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+            email: verifyData.email,
+            password: verifyData.password,
+            options: { data: { phone: full } },
+          })
+          if (signUpErr) { setError(signUpErr.message); setPhoneLoading(false); return }
+          if (!signUpData.session) {
+            setError("注册请求已提交，请在 Supabase 关闭邮箱确认后重试"); setPhoneLoading(false); return
+          }
+          toast.success("注册成功 ✨")
+          router.push("/onboarding")
+          return
+        }
+        setError(signInErr.message); setPhoneLoading(false); return
+      }
       if (!data.session) { setError("登录失败，请重试"); setPhoneLoading(false); return }
 
       toast.success("登录成功 ✨")
