@@ -1,5 +1,5 @@
 /**
- * AI API 封装 — DeepSeek 文本 + Seedream 图片 + 豆包视觉识别
+ * AI API 封装 — DeepSeek 文本 + ofox.ai 视觉识别 (GPT-4o) + ofox.ai 图片生成 (GPT Image)
  * 支持非流式 chat + tool-use
  */
 
@@ -9,8 +9,6 @@ import sharp from "sharp"
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY!
 const DEEPSEEK_BASE = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com"
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-pro"
-
-const SEEDREAM_KEY = process.env.SEEDREAM_API_KEY!
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false })
 

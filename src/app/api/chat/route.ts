@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js"
 import { chat, type Message, type ToolDef } from "@/lib/ai"
 import { getSystemPrompt, queryRules, queryFormulas } from "@/lib/matching-rules"
 import { MOCK_CLOTHING } from "@/lib/mock-data"
-import { fetchWeather, weatherSummary } from "@/lib/weather"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -140,20 +139,7 @@ const GET_FORMULAS_TOOL: ToolDef = {
 
 
 
-const GET_WEATHER_TOOL: ToolDef = {
-  type: "function",
-  function: {
-    name: "get_weather",
-    description:
-      "获取用户所在城市的实时天气和未来3日预报（温度、体感温度、降水、风力、湿度）。当用户需要外出穿搭建议或提及户外场景时使用此工具。",
-    parameters: {
-      type: "object",
-      properties: {},
-    },
-  },
-}
-
-const TOOLS = [LIST_ITEMS_TOOL, GET_RULES_TOOL, GET_FORMULAS_TOOL, GET_WEATHER_TOOL]
+const TOOLS = [LIST_ITEMS_TOOL, GET_RULES_TOOL, GET_FORMULAS_TOOL]
 
 // ---- 类型 ----
 
@@ -165,6 +151,23 @@ interface OutfitSlot {
   shoes: string | null
   bag: string | null
   accessories: string[]
+}
+
+interface WardrobeItem {
+  id?: string
+  name: string
+  category: string
+  sub_category: string | null
+  color: string
+  color_group?: string | null
+  material: string | null
+  pattern: string | null
+  fit: string | null
+  length: string | null
+  neckline: string | null
+  detail: string | null
+  style_tags: string[]
+  source?: string
 }
 
 // ---- 工具执行 ----
@@ -185,8 +188,8 @@ function colorGroup(hex: string): string | null {
   return null
 }
 
-// executeTool 闭包需要访问 currentOutfit + user auth token + coords
-function makeExecuteTool(currentOutfit: OutfitSlot, userToken: string | null, coords?: { lat: number; lon: number } | null) {
+// executeTool 闭包：list_items 用预取的衣橱数据做内存过滤，不再查 Supabase
+function makeExecuteTool(currentOutfit: OutfitSlot, wardrobeItems: WardrobeItem[]) {
   return async function executeTool(name: string, args: Record<string, unknown>) {
     switch (name) {
       case "list_items": {
@@ -197,7 +200,7 @@ function makeExecuteTool(currentOutfit: OutfitSlot, userToken: string | null, co
         const rawLimit = args.limit as number | undefined
         const limit = typeof rawLimit === "number" ? rawLimit : 20
 
-        // 1. Mock 数据
+        // 1. Mock 数据（内存过滤）
         let mockItems = MOCK_CLOTHING.filter((i) => i.category === category)
         if (style) {
           mockItems = mockItems.filter((i) => i.style_tags.some((t) => t.includes(style) || style.includes(t)))
@@ -209,61 +212,28 @@ function makeExecuteTool(currentOutfit: OutfitSlot, userToken: string | null, co
           mockItems = mockItems.filter((i) => i.material?.includes(material))
         }
 
-        // 2. 个人衣橱查询
-        let personalResult: Record<string, unknown>[] = []
-        if (userToken) {
-          try {
-            const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-              global: { headers: { Authorization: `Bearer ${userToken}` } },
-            })
-            let query = supabase.from("clothing_items").select("*").eq("category", category)
-            if (style) {
-              query = query.contains("style_tags", [style])
-            }
-            if (material) {
-              query = query.ilike("material", `%${material}%`)
-            }
-            const { data } = await query.limit(limit)
-            personalResult = (data || []).map((i: Record<string, unknown>) => ({
-              id: i.id,
-              name: i.name,
-              category: i.category,
-              sub_category: i.sub_category || null,
-              color: i.color || "#9A9A9A",
-              color_group: i.color_group || null,
-              material: i.material || null,
-              pattern: i.pattern || null,
-              fit: i.fit || null,
-              length: i.length || null,
-              neckline: i.neckline || null,
-              detail: i.detail || null,
-              style_tags: i.style_tags || [],
-              source: "personal",
-            }))
-          } catch (e) {
-            console.warn("[chat] personal wardrobe query failed:", e)
-          }
+        // 2. 预取的衣橱数据（内存过滤，不再查 Supabase）
+        let personalItems = wardrobeItems.filter((i) => i.category === category)
+        if (style) {
+          personalItems = personalItems.filter((i) => i.style_tags.some((t) => t.includes(style) || style.includes(t)))
+        }
+        if (colorGroupFilter) {
+          personalItems = personalItems.filter((i) => colorGroup(i.color) === colorGroupFilter)
+        }
+        if (material) {
+          personalItems = personalItems.filter((i) => i.material?.includes(material))
         }
 
-        // 3. 合并结果
         const mockFormatted = mockItems.slice(0, limit).map((i) => ({
-          id: i.id,
-          name: i.name,
-          category: i.category,
-          sub_category: i.sub_category,
-          color: i.color,
-          color_group: i.color_group,
-          material: i.material,
-          pattern: i.pattern,
-          fit: i.fit,
-          length: i.length,
-          neckline: i.neckline,
-          detail: i.detail,
-          style_tags: i.style_tags,
-          source: "system",
+          id: i.id, name: i.name, category: i.category, sub_category: i.sub_category,
+          color: i.color, color_group: i.color_group, material: i.material,
+          pattern: i.pattern, fit: i.fit, length: i.length, neckline: i.neckline,
+          detail: i.detail, style_tags: i.style_tags, source: "system",
         }))
-
-        const allItems = [...mockFormatted, ...personalResult].slice(0, limit)
+        const personalFormatted = personalItems.slice(0, limit).map((i) => ({
+          ...i, source: i.source || "personal",
+        }))
+        const allItems = [...mockFormatted, ...personalFormatted].slice(0, limit)
         return { count: allItems.length, items: allItems }
       }
 
@@ -287,15 +257,6 @@ function makeExecuteTool(currentOutfit: OutfitSlot, userToken: string | null, co
         return { formulas: queryFormulas({ scene, style, season, bodyShape, gender, maxDifficulty }) }
       }
 
-
-      case "get_weather": {
-        if (!coords || !coords.lat || !coords.lon) {
-          return { error: "未获取到位置信息，无法查询天气。请允许浏览器定位权限。" }
-        }
-        const data = await fetchWeather(coords.lat, coords.lon)
-        if (!data) return { error: "天气服务暂不可用，请稍后重试" }
-        return { summary: weatherSummary(data), detail: data }
-      }
 
       default:
         return { error: `未知工具: ${name}` }
@@ -394,15 +355,15 @@ function stripJSONFromText(text: string): string {
 async function agentLoop(
   userMessage: string,
   currentOutfit: OutfitSlot,
-  userToken: string | null,
-  coords?: { lat: number; lon: number } | null,
+  weatherSummary: string | null,
+  wardrobeItems: WardrobeItem[],
   gender?: "female" | "male",
   bodyType?: string | null,
   styleTags?: string[],
   outfitContext?: string | null,
 ): Promise<{ content: string; rounds: number; plans: Record<string, unknown>[] }> {
   const messages: Message[] = [
-    { role: "system", content: getSystemPrompt({ gender, bodyType, styleTags }) },
+    { role: "system", content: getSystemPrompt({ gender, bodyType, styleTags, weatherSummary }) },
   ]
   // 注入搭配面板参考信息（软性提示，AI 自行判断是否使用）
   if (outfitContext) {
@@ -411,7 +372,7 @@ async function agentLoop(
   }
   messages.push({ role: "user", content: userMessage })
 
-  const executeTool = makeExecuteTool(currentOutfit, userToken, coords)
+  const executeTool = makeExecuteTool(currentOutfit, wardrobeItems)
   let rounds = 0
 
   while (rounds < MAX_ROUNDS) {
@@ -496,10 +457,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { message, currentOutfit, coords, gender, bodyType, styleTags, outfitContext } = body as {
+    const { message, currentOutfit, weatherSummary: wxSummary, wardrobeItems, gender, bodyType, styleTags, outfitContext } = body as {
       message: string
       currentOutfit?: OutfitSlot
-      coords?: { lat: number; lon: number } | null
+      weatherSummary?: string | null
+      wardrobeItems?: WardrobeItem[]
       gender?: "female" | "male"
       bodyType?: string | null
       styleTags?: string[]
@@ -512,8 +474,8 @@ export async function POST(request: NextRequest) {
 
     const outfit = currentOutfit || EMPTY_OUTFIT
     const filledSlots = Object.entries(outfit).filter(([, v]) => v).length
-    console.log(`[chat] request: ${filledSlots} outfit slots, message len=${message.length}`)
-    const { content, rounds, plans } = await agentLoop(message.trim(), outfit, userToken, coords, gender, bodyType, styleTags, outfitContext)
+    console.log(`[chat] request: ${filledSlots} outfit slots, message len=${message.length}, wardrobe=${(wardrobeItems || []).length}, weather=${!!wxSummary}`)
+    const { content, rounds, plans } = await agentLoop(message.trim(), outfit, wxSummary || null, wardrobeItems || [], gender, bodyType, styleTags, outfitContext)
     console.log(`[chat] AI (${rounds} rounds):`, content.slice(0, 120))
 
     return NextResponse.json({ content, rounds, plans })

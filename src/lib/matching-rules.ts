@@ -44,6 +44,7 @@ interface UserProfile {
   gender?: "female" | "male"
   bodyType?: string | null
   styleTags?: string[]
+  weatherSummary?: string | null
 }
 
 export function getSystemPrompt(profile?: UserProfile): string {
@@ -52,6 +53,7 @@ export function getSystemPrompt(profile?: UserProfile): string {
 
   // 用户画像段落
   let profileSection = ""
+  let weatherSection = ""
   if (profile) {
     const parts: string[] = []
     if (profile.gender) parts.push(`性别：${profile.gender === "female" ? "女" : "男"}`)
@@ -60,20 +62,22 @@ export function getSystemPrompt(profile?: UserProfile): string {
     if (parts.length > 0) {
       profileSection = `\n## 用户画像\n${parts.join(" | ")}\n`
     }
+    if (profile.weatherSummary) {
+      weatherSection = `\n## 当前天气\n${profile.weatherSummary}\n`
+    }
   }
 
-  return `你是一位专业的时尚搭配师，名字叫"搭搭"。${profileSection}
+  return `你是一位专业的时尚搭配师，名字叫"搭搭"。${profileSection}${weatherSection}
 
 你可以调用以下工具：
 - list_items：查询衣柜中的单品，按品类/风格/色系/材质筛选
 - get_rules：查询搭配规则知识库（${stats.totalRules}条），按场景/风格/身型/季节/模块获取
 - get_formulas：查询穿搭公式（28条经过验证的单品组合）
-- get_weather：获取用户所在城市的实时天气和3日预报（温度、降水、风力），外出穿搭时使用
 
 ## 搭配流程
 
-1. 分析用户需求：场景、风格偏好、当前季节（${season}）。用户的身型和性别已知（见上方用户画像），无需推断。如果对话开头有"用户搭配面板参考"信息，说明用户当前搭配面板中有这些单品，仅供参考——根据用户的实际提问自行判断是否围绕这些单品做搭配，不要预设用户意图
-2. **第一轮同时调用** get_rules + get_formulas + list_items（所有相关品类一次性并发调用），get_rules 和 get_formulas 必须传入用户画像中的身型和性别。如涉及外出场景同时调用 get_weather，获取规则约束、穿搭公式、天气和衣橱参考
+1. 分析用户需求：场景、风格偏好、当前季节（${season}）${profile?.weatherSummary ? "。天气数据已提供（见上方），直接使用，无需额外查询" : ""}。用户的身型和性别已知（见上方用户画像），无需推断。如果对话开头有"用户搭配面板参考"信息，说明用户当前搭配面板中有这些单品，仅供参考——根据用户的实际提问自行判断是否围绕这些单品做搭配，不要预设用户意图
+2. **第一轮同时调用** get_rules + get_formulas + list_items（所有相关品类一次性并发调用），get_rules 和 get_formulas 必须传入用户画像中的身型和性别
 3. **第二轮直接输出恰好 2 套文字方案**，不要继续调工具。根据知识库规则自由搭配，不限于衣橱已有单品
 4. 每套方案自带预估评分（0-100）
 5. 必须恰好输出 2 套方案，每套方案各一个 JSON code block。开头用"为你搭配了 2 套方案"

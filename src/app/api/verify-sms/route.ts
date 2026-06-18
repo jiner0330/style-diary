@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { checkVerificationCode } from "@/lib/sms"
 import { rateLimit } from "@/lib/rate-limit"
-import https from "https"
-import http from "http"
 import crypto from "crypto"
 
 function getPhoneSecret(): string {
@@ -12,57 +10,46 @@ function getPhoneSecret(): string {
   return secret
 }
 
-function createFetch() {
-  const agent = new https.Agent({ rejectUnauthorized: false })
-  return (url: string | URL, init?: RequestInit): Promise<Response> => {
-    const u = typeof url === "string" ? new URL(url) : url
-    const isHttps = u.protocol === "https:"
-    const method = init?.method || "GET"
-
-    const headers: Record<string, string> = {}
-    if (init?.headers) {
-      if (init.headers instanceof Headers) {
-        init.headers.forEach((v, k) => { headers[k] = v })
-      } else if (Array.isArray(init.headers)) {
-        init.headers.forEach(([k, v]) => { headers[k] = v })
-      } else {
-        Object.assign(headers, init.headers)
-      }
-    }
-
-    const mod = isHttps ? https : http
-    return new Promise((resolve, reject) => {
-      const req = mod.request(url, {
-        method,
-        headers,
-        agent: isHttps ? agent : undefined,
-        rejectUnauthorized: false,
-      }, (res) => {
-        let body = ""
-        res.on("data", (chunk: Buffer) => { body += chunk.toString() })
-        res.on("end", () => {
-          resolve(new Response(body, {
-            status: res.statusCode,
-            statusText: res.statusMessage,
-            headers: new Headers(res.headers as Record<string, string>),
-          }))
-        })
-      })
-      req.on("error", reject)
-      if (init?.body) {
-        req.write(typeof init.body === "string" ? init.body : JSON.stringify(init.body))
-      }
-      req.end()
-    })
-  }
-}
-
 function getAdminClient() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured")
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
-    global: { fetch: createFetch() as typeof fetch },
-  })
+
+  // macOS 开发环境 TLS 兼容（NODE_EXTRA_CA_CERTS 存在时用自定义 fetch）
+  if (process.env.NODE_EXTRA_CA_CERTS) {
+    const https = require("https") as typeof import("https")
+    const http = require("http") as typeof import("http")
+    const agent = new https.Agent({ rejectUnauthorized: false })
+    const customFetch = (url: string | URL, init?: RequestInit): Promise<Response> => {
+      const u = typeof url === "string" ? new URL(url) : url
+      const isHttps = u.protocol === "https:"
+      const method = init?.method || "GET"
+      const headers: Record<string, string> = {}
+      if (init?.headers) {
+        if (init.headers instanceof Headers) {
+          init.headers.forEach((v, k) => { headers[k] = v })
+        } else if (Array.isArray(init.headers)) {
+          init.headers.forEach(([k, v]) => { headers[k] = v })
+        } else {
+          Object.assign(headers, init.headers)
+        }
+      }
+      const mod = isHttps ? https : http
+      return new Promise((resolve, reject) => {
+        const req = mod.request(url, { method, headers, agent: isHttps ? agent : undefined, rejectUnauthorized: false }, (res: any) => {
+          let body = ""
+          res.on("data", (chunk: Buffer) => { body += chunk.toString() })
+          res.on("end", () => resolve(new Response(body, { status: res.statusCode, statusText: res.statusMessage })))
+        })
+        req.on("error", reject)
+        if (init?.body) req.write(typeof init.body === "string" ? init.body : JSON.stringify(init.body))
+        req.end()
+      })
+    }
+    return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { global: { fetch: customFetch as typeof fetch } })
+  }
+
+  // Vercel Linux 用标准 fetch
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key)
 }
 
 function phoneToEmail(phone: string) {
@@ -93,35 +80,35 @@ export async function POST(req: NextRequest) {
     // 1. 调用阿里云短信认证 API 校验验证码
     await checkVerificationCode(phone, code)
 
-    // 2. 查找或创建 Supabase 用户
+    // 2. 创建或复用 Supabase 用户
     const supabaseAdmin = getAdminClient()
     const email = phoneToEmail(phone)
     const password = crypto.createHmac("sha256", getPhoneSecret()).update(`phone:${digits}`).digest("hex").slice(0, 32)
 
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const existing = existingUsers?.users?.find(
-      (u) => u.email === email || u.phone === phone
-    )
+    const { error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { phone },
+    })
 
-    if (!existing) {
-      const { error: createErr } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        phone,
-        email_confirm: true,
-        phone_confirm: true,
-        user_metadata: { phone },
-      })
-      if (createErr) {
-        console.error("[verify-sms] create user error:", createErr)
-        return NextResponse.json({ error: "创建用户失败" }, { status: 500 })
+    if (createErr) {
+      // 用户已存在 → 正常流程
+      if (createErr.message?.includes("already") || createErr.status === 422) {
+        console.log("[verify-sms] user already exists, proceeding")
+      } else {
+        // 其他错误：打印完整信息，但仍返回凭据让前端尝试登录
+        // （用户可能在之前某次请求中已创建成功）
+        console.error("[verify-sms] createUser failed:", JSON.stringify(createErr))
+        console.error("[verify-sms] createUser message:", createErr.message)
+        console.error("[verify-sms] createUser status:", createErr.status)
       }
     }
 
-    // 3. 返回登录凭据给前端
+    // 3. 返回登录凭据给前端（无论 createUser 是否成功都返回）
     return NextResponse.json({ email, password })
   } catch (err: any) {
-    console.error("[verify-sms]", err)
-    return NextResponse.json({ error: "验证失败，请稍后重试" }, { status: 500 })
+    console.error("[verify-sms] unexpected error:", err)
+    return NextResponse.json({ error: `验证失败：${err.message || "未知错误"}` }, { status: 500 })
   }
 }

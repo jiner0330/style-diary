@@ -26,7 +26,7 @@
 
 3. **AI 单品缓存**：store 新增 `aiItemsCache: Map<string, ClothingItem>`，AI 生成的单品用临时 ID 存入。`collectItems()` 同时查询 mock 数据 + 个人衣橱 + AI 缓存。
 
-4. **生图入口**：新增 `handleGenerateFromAIItems()` 直接接收结构化单品数据调 Seedream，不走 `collectItems()`。
+4. **生图入口**：新增 `handleGenerateFromAIItems()` 直接接收结构化单品数据调 ofox.ai GPT Image，不走 `collectItems()`。
 
 5. **灵感收藏**：store 新增 `savedInspirations[]`，支持"收藏到灵感板"。
 
@@ -41,7 +41,14 @@
 
 ---
 
-## 2026-05-22 图片生成从 OfoxAI 切换到 Seedream 4.5
+## ~~2026-05-22 图片生成从 OfoxAI 切换到 Seedream 4.5~~ （已废弃）
+
+> **2026-06-15 更新**：Seedream 方案后续被废弃。`/api/generate-ai-outfit`（豆包 Seedream）路由从未接入前端业务流，实际生图统一使用 `/api/generate-outfit` → ofox.ai → GPT Image (`openai/gpt-image-2`)。Seedream 相关代码和环境变量已清理。
+>
+> 原因：GPT Image 通过 ofox.ai 代理后生图质量满足需求，且流程统一（视觉识别和生图走同一代理），无需维护两套 API。
+
+<details>
+<summary>原始记录（保留存档）</summary>
 
 ### 问题
 
@@ -51,24 +58,12 @@ OfoxAI (GPT Image) 生成图片不准确，红色一字肩上衣变成挂脖。
 
 切换到 Seedream 4.5 (`doubao-seedream-4-5-251128`)，利用其 `negative_prompt` 和 `guidance_scale` 参数提高精度。
 
-为什么选 4.5 而非 5.0：Seedream 5.0 不支持 `guidance_scale`、`negative_prompt`、`strength` 参数。
-
-### 关键技术点
-
-1. **API 端点**：`https://ark.cn-beijing.volces.com/v1/images/generations`
-
-2. **Prompt 结构化**：自然英语句式 + `SUBCAT_SHAPE` 映射表，每个 `sub_category` 对应一段精确的英文视觉描述。
-
-3. **Negative prompt**：`NEGATIVE_FEATURES` 映射表，按 `sub_category` 反向排除常见错误（如 `off_shoulder_ls` → 排除 halter neck, crew neck, turtleneck, shoulder straps）。
-
-4. **参数**：`guidance_scale=7.5`，确定性 seed（单品名 + 角度哈希）。
-
-5. **模特一致性**：硬编码常量描述（发型、五官、肤色、身材），三个角度各有独立 prompt。
-
 ### 涉及文件
 
 - `src/app/api/generate-outfit/route.ts` — 切换 API + 重写 prompt 构建
 - `.env.local` — SEEDREAM_MODEL → `doubao-seedream-4-5-251128`
+
+</details>
 
 ---
 

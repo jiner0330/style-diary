@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { getItemById } from "@/lib/mock-data"
-import { getAuthToken } from "@/lib/supabase"
+import { getAuthToken, supabase } from "@/lib/supabase"
 import { useOutfitStore } from "@/store/outfit"
 import type { OutfitState, AIOutfitPlan, AIOutfitItem, ClothingItem } from "@/types"
 import toast from "react-hot-toast"
@@ -238,15 +238,25 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
       }
 
       const outfitDesc = describeOutfitForAI()
-
       const token = await getAuthToken()
+
+      // 客户端预取天气 + 衣橱，减少 Vercel HK 跨境调用
+      const [weatherData, wardrobeData] = await Promise.all([
+        userCoords
+          ? fetch(`/api/weather?lat=${userCoords.lat}&lon=${userCoords.lon}`).then(r => r.ok ? r.json() : null).catch(() => null)
+          : Promise.resolve(null),
+        supabase.from("clothing_items").select("*").then(({ data, error }: any) => error ? [] : (data || []), () => []),
+      ])
+      const weatherSummary: string | null = weatherData?.summary || null
+      const wardrobeItems = wardrobeData || []
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, outfitContext: outfitDesc, coords: userCoords, gender, bodyType, styleTags }),
+        body: JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, outfitContext: outfitDesc, weatherSummary, wardrobeItems, gender, bodyType, styleTags }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "请求失败")

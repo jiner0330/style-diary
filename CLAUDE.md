@@ -111,6 +111,55 @@ allowedDevOrigins: ["<手机所在IP>"],
 - **用户来批**：费用、账号配额、成本容忍度只有你知道。选模型时给出理由和备选，确认后执行。
 - 不要自行切换 API 或模型端点，先说明分析结论。
 
+## Vercel 部署排障：本地与生产环境的四层差异
+
+### 核心教训
+
+**本地通过 ≠ Vercel 能跑。** 2026-06-11 首次生产部署踩了四层叠加的环境差异，每修一层才暴露下一层，反馈周期极长（改代码 → 推 GitHub → 等 Vercel 日志）。
+
+### 四层差异速查
+
+| 层 | 差异 | 症状 | 检查方法 |
+|----|------|------|----------|
+| 文件系统 | git symlink (mode 120000) 指向外部路径，Vercel clone 后不存在 | `Module not found` | `git ls-files -s` 查看文件模式，120000 = symlink |
+| 平台架构 | macOS arm64 vs Linux x64，native 二进制（SWC）不兼容 | lockfile 里包在但 npm 不安装 | `grep swc-linux package-lock.json` |
+| 构建行为 | Vercel 的 `modifyConfig` 强推 Turbopack，无视 `--webpack` 标志 | 日志显示 `Applying modifyConfig` + `(Turbopack)` | 看 Vercel 构建日志前 10 行 |
+| 体积限制 | Serverless Function 250MB 硬限制，本地不关心文件大小 | `exceeded the unzipped maximum size` | `du -sh public/` + `git ls-files public/ \| xargs du -k \| sort -rn` |
+
+### 高频陷阱
+
+1. **Symlink 到外部工作区** — `src/lib/rules → ~/.openclaw/workspace/rules` 在 git 里是 mode 120000，Vercel 无此路径。**解决**：把真实文件拷进项目并提交。
+2. **Untracked 但被 import 的文件** — `git status` 不会主动告诉你某个 import 的文件不在仓库里。**解决**：构建报 `Module not found` 时，先用 `git ls-files` 确认文件是否被追踪。
+3. **Vercel 无视 `--webpack`** — Next.js 16 项目 Vercel 会注入 `modifyConfig` 强开 Turbopack，package.json 的 `--webpack` 标志和 `vercel.json` 的 `buildCommand` 都可能被覆盖。**解决**：别对抗 Turbopack，确保 SWC Linux 二进制可安装即可——把 `@next/swc-linux-x64-gnu` 和 `@next/swc-linux-x64-musl` 加入 `optionalDependencies`。
+4. **静态资源膨胀** — PNG 4096px / 19MB、MP3 13 分钟 / 24MB，累计 301MB 直接打穿 250MB 函数限制。**解决**：sharp 压缩 PNG 到 max 1200px，音频转 AAC 96kbps。`git ls-files public/ | xargs du -k | sort -rn | head -20` 快速定位大文件。
+
+### 最佳实践：部署前本地模拟
+
+```bash
+# 模拟 Vercel 构建（比推代码快 10 倍）
+npx vercel build --prod
+
+# 检查哪些文件会被部署
+git ls-files | xargs du -k | sort -rn | head -20
+
+# 确认没有 symlink
+git ls-files -s | grep "^120000"
+```
+
+### 排查顺序
+
+```
+部署失败
+  ├─ 构建阶段失败？
+  │   ├─ Module not found → git ls-files 检查文件是否追踪
+  │   ├─ symlink 问题 → git ls-files -s | grep "^120000"
+  │   └─ SWC 缺失 → optionalDependencies + 检查 lockfile
+  ├─ 部署阶段失败？
+  │   └─ 250MB 超限 → du -sh public/ + 压缩大文件
+  └─ 运行时错误？
+      └─ Vercel 环境变量是否配齐（对照 .env.example）
+```
+
 ## 重要规则
 
 - **不要自行切换 API**：遇到 API 端点报错（如 404、400）时，先分析清楚兼容性和影响范围，确认变更是否会影响其他已有功能模块。向用户说明分析结论，得到确认回复后再执行修改。禁止未经确认直接替换 API 端点或模型。
