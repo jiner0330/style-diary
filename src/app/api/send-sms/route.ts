@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 })
     }
 
+    console.log("[send-sms] sending code to phone:", digits)
     await sendVerificationCode(phone)
 
     return NextResponse.json({ ok: true })

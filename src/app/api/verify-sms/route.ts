@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. 调用阿里云短信认证 API 校验验证码
+    console.log("[verify-sms] checking code for phone:", digits, "code len:", code.length)
     await checkVerificationCode(phone, code)
 
     // 2. 创建或复用 Supabase 用户
