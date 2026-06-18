@@ -9,6 +9,8 @@ function getClient() {
     accessKeySecret: process.env.ALIBABA_ACCESS_KEY_SECRET!,
   })
   config.endpoint = "dypnsapi.aliyuncs.com"
+  config.timeout = 15000
+  config.readTimeout = 15000
   return new Client(config)
 }
 
