@@ -54,7 +54,7 @@ function AuthForm() {
     setError("")
     setPhoneLoading(true)
     try {
-      const res = await fetch("/api/send-sms", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_FC_SEND_SMS_URL}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: full }),
@@ -82,7 +82,7 @@ function AuthForm() {
     setPhoneLoading(true)
     try {
       // 1. 验证验证码
-      const verifyRes = await fetch("/api/verify-sms", {
+      const verifyRes = await fetch(`${process.env.NEXT_PUBLIC_FC_VERIFY_SMS_URL}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: full, code: token }),

@@ -1,0 +1,10 @@
+{
+  "name": "verify-sms",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@alicloud/dypnsapi20170525": "^1.0.0",
+    "@alicloud/openapi-core": "^1.0.0",
+    "@supabase/supabase-js": "^2.0.0"
+  }
+}
