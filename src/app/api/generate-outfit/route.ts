@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import https from "https"
-import { requireAuth } from "@/lib/auth"
+import { createClient } from "@supabase/supabase-js"
 
 // Hobby 计划函数最长 60s；同步生图须在此预算内完成
 export const maxDuration = 60
@@ -8,6 +8,12 @@ export const maxDuration = 60
 const OFOXAI_KEY = process.env.OFOXAI_API_KEY!
 const OFOXAI_BASE = process.env.OFOXAI_BASE_URL || "https://api.ofox.ai"
 const MODEL = "openai/gpt-image-2"
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const RENDER_BUCKET = "outfit-renders"
+// prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
+const PROMPT_VERSION = "v1"
 
 interface OutfitItem {
   slot: string
@@ -585,10 +591,38 @@ async function runGeneration(prompt: string): Promise<string> {
   }
 }
 
-// POST: 同步生图，直接返回 base64（Vercel serverless 不能写文件/跑后台任务）
+function getToken(request: NextRequest): string | null {
+  const auth = request.headers.get("authorization")
+  return auth?.startsWith("Bearer ") ? auth.slice(7) : null
+}
+
+// 搭配指纹：把影响出图的属性拼成确定性字符串再哈希成短 key（同搭配 → 同 key）
+function outfitFingerprint(items: OutfitItem[], angleIndex: number): string {
+  const sig = items
+    .map((i) => [i.name, i.color, i.material ?? "", i.sub_category ?? "", i.detail ?? "", i.pattern ?? "", i.length ?? ""].join("|"))
+    .sort().join("||")
+  const hash = Array.from(`${PROMPT_VERSION}|${sig}|${angleIndex}`)
+    .reduce((s, c) => ((s << 5) - s + c.charCodeAt(0)) | 0, 0)
+  return (hash >>> 0).toString(36)
+}
+
+// 预设单品 image_url 是本地静态路径（/...），用户上传的是完整 http(s) URL
+function hasUserItem(items: OutfitItem[]): boolean {
+  return items.some((i) => !!i.image_url && !i.image_url.startsWith("/"))
+}
+
+// POST: 同步生图 + 按搭配指纹做 Supabase Storage 缓存（同搭配复用同一张图）
 export async function POST(request: NextRequest) {
-  const userId = await requireAuth(request)
-  if (!userId) {
+  const token = getToken(request)
+  if (!token) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 })
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  })
+  const { data: { user } } = await supabase.auth.getUser(token)
+  if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 })
   }
 
@@ -609,17 +643,35 @@ export async function POST(request: NextRequest) {
     const prompt = buildPrompt(items, angleIndex, safeGender)
     const promptZh = buildPromptZh(items, angleIndex, safeGender)
 
+    // 缓存 key：含用户上传单品 → 按 ownerId 隔离；纯预设 → 全局共享
+    const key = outfitFingerprint(items, angleIndex)
+    const folder = hasUserItem(items) ? `u/${user.id}` : "g"
+    const objectPath = `${folder}/${key}.png`
+    const { data: urlData } = supabase.storage.from(RENDER_BUCKET).getPublicUrl(objectPath)
+    const publicUrl = urlData.publicUrl
+
+    // 命中：HEAD 探测公开 URL（公开 bucket 读取不需要鉴权策略）
+    const cached = await fetch(publicUrl, { method: "HEAD" }).then((r) => r.ok).catch(() => false)
+    if (cached) {
+      console.log("[generate-outfit] cache hit:", objectPath)
+      return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: "text_only", cached: true })
+    }
+
+    // 未命中：生成
     const t0 = Date.now()
     const b64 = await runGeneration(prompt)
     console.log(`[generate-outfit] done in ${Date.now() - t0}ms`)
 
-    return NextResponse.json({
-      status: "done",
-      imageUrl: `data:image/png;base64,${b64}`,
-      prompt,
-      promptZh,
-      mode: "text_only",
-    })
+    // 写入缓存，下次复用；上传失败不阻塞——退回内联 base64
+    const { error: upErr } = await supabase.storage
+      .from(RENDER_BUCKET)
+      .upload(objectPath, Buffer.from(b64, "base64"), { contentType: "image/png", upsert: true })
+    if (upErr) {
+      console.warn("[generate-outfit] cache upload failed, returning inline:", upErr.message)
+      return NextResponse.json({ status: "done", imageUrl: `data:image/png;base64,${b64}`, prompt, promptZh, mode: "text_only" })
+    }
+
+    return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: "text_only" })
   } catch (err) {
     console.error("[generate-outfit] POST error:", err)
     return NextResponse.json(
