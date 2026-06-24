@@ -693,6 +693,7 @@ export async function POST(request: NextRequest) {
       console.warn("[generate-outfit] cache upload failed, returning inline:", upErr.message)
       return NextResponse.json({ status: "done", imageUrl: `data:image/png;base64,${b64}`, prompt, promptZh, mode: "text_only" })
     }
+    console.log("[generate-outfit] cache uploaded:", objectPath)
 
     return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: "text_only" })
   } catch (err) {
