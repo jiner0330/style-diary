@@ -86,7 +86,9 @@ function DressingContent() {
     setGeneratingAngle(null)
     generatingAngleRef.current = null
     setReviewData(null)
-    generatedByAI.current = false
+    // 穿 AI 套 → 保留 AI 标记（不评分）；用户手动改动 → 重置为 DIY（评分）
+    generatedByAI.current = wearingAISetRef.current
+    wearingAISetRef.current = false
   }, [outfit])
   const setSlot = useOutfitStore((s) => s.setSlot)
   const addAccessory = useOutfitStore((s) => s.addAccessory)
@@ -299,6 +301,8 @@ function DressingContent() {
   const [genStage, setGenStage] = useState<"connecting" | "generating" | "processing">("connecting")
   const skipReviewRef = useRef(false)
   const generatedByAI = useRef(false)
+  // 穿上 AI 方案时置 true，让 [outfit] effect 保留 AI 标记而非重置为 DIY
+  const wearingAISetRef = useRef(false)
   const genStartTimeRef = useRef(0)
   const celebratedGenRef = useRef<number | null>(null)
 
@@ -756,7 +760,7 @@ function DressingContent() {
             <ChatPanel
               currentOutfit={outfit}
               onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
-              onWearSet={wearSet}
+              onWearSet={(items) => { wearingAISetRef.current = true; wearSet(items) }}
               userCoords={userCoords}
               gender={userGender}
               bodyType={userBodyType}
@@ -882,6 +886,7 @@ function DressingContent() {
               onClose={() => setMobileTab(null)}
               onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
               onWearSet={(items) => {
+                wearingAISetRef.current = true
                 wearSet(items)
               }}
               userCoords={userCoords}
@@ -947,7 +952,7 @@ function DressingContent() {
           setResultAngle(i)
           setShowResult(true)
           // 并行启动评价（如果尚未评价且不在评价中）
-          if (!reviewData && !reviewLoading) evaluateOutfit()
+          if (!reviewData && !reviewLoading && !generatedByAI.current) evaluateOutfit()
           generateForAngle(i)
         }}
         onClose={() => { setShowResult(false) }}
