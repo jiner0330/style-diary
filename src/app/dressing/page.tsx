@@ -309,9 +309,13 @@ function DressingContent() {
     setReviewLoading(true)
     try {
       const currentOutfit = useOutfitStore.getState().outfit
+      const token = await getAuthToken()
       const res = await fetch("/api/evaluate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ outfit: currentOutfit, scene: scene?.name }),
       })
       const data = await res.json()
@@ -398,23 +402,24 @@ function DressingContent() {
     genStartTimeRef.current = Date.now()
     track("generation_start", { sceneId, properties: { angleIndex: apiAngle, itemCount: items.length } })
 
-    try {
-      const token = await getAuthToken()
-      const res = await fetch("/api/generate-outfit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ gender: userGender, items, angleIndex: apiAngle }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "生成失败")
+    const token = await getAuthToken()
+    const reqBody = JSON.stringify({ gender: userGender, items, angleIndex: apiAngle })
+    let lastErr: any = null
 
-      setGenTaskId(data.taskId)
+    // 生图偶发超时（Hobby 60s 函数上限，gpt-image-2 有时 >55s），失败透明重试一次
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch("/api/generate-outfit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: reqBody,
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || "生成失败")
 
-      if (data.status === "done") {
-        // 缓存命中，直接完成
         generatingAngleRef.current = null
         setGenStatus("done")
         setGeneratingAngle(null)
@@ -431,13 +436,16 @@ function DressingContent() {
           gender: resolvedGender,
         })
         if (!skipReview && !generatedByAI.current && !reviewLoading) evaluateOutfit()
+        return
+      } catch (err: any) {
+        lastErr = err
+        if (attempt === 0) console.warn("[generate-outfit] 首次失败，重试一次:", err?.message)
       }
-      // status === "generating" → 等轮询
-    } catch (err: any) {
-      setGenStatus("error")
-      setGenError(err.message || "生成失败")
-      toast.error(err.message || "生成失败，请重试")
     }
+
+    setGenStatus("error")
+    setGenError(lastErr?.message || "生成失败")
+    toast.error(lastErr?.message || "生成失败，请重试")
   }
 
   // 完成搭配 → 生成当前角度（仅 DIY 才触发评价）
