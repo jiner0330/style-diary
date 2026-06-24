@@ -73,6 +73,7 @@ export async function chat(params: ChatParams): Promise<ChatResponse> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
+  const t0 = Date.now()
   try {
     // 文本对话优先走 DeepSeek（可直连）
     const res = await fetch(`${DEEPSEEK_BASE}/v1/chat/completions`, {
@@ -101,6 +102,10 @@ export async function chat(params: ChatParams): Promise<ChatResponse> {
     }
     if (choice.message.tool_calls) msg.tool_calls = choice.message.tool_calls
     if (choice.message.reasoning_content) msg.reasoning_content = choice.message.reasoning_content
+
+    const elapsed = Date.now() - t0
+    const rc = choice.message.reasoning_content
+    console.log(`[chat-llm] model=${data.model} finish=${choice.finish_reason} elapsed=${elapsed}ms completion=${data.usage?.completion_tokens ?? 0} reasoning=${!!rc}/${rc?.length ?? 0} toolcalls=${choice.message.tool_calls?.length ?? 0}`)
 
     return {
       message: msg,
