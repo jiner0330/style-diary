@@ -1,14 +1,15 @@
 /**
  * 和风天气 API — 实时天气 + 3日预报
- * 免费版: https://devapi.qweather.com
- * 城市查询: https://geoapi.qweather.com
+ * 2025-04 起改用账号专属 API Host（*.qweatherapi.com），旧共享域名 2026 起停用
+ * Host 走环境变量 QWEATHER_API_HOST，不写进仓库（Host 本身也是凭证）
  */
 
 import https from "https"
 
 const QWEATHER_KEY = process.env.QWEATHER_API_KEY!
-const WEATHER_BASE = "https://devapi.qweather.com/v7/weather"
-const GEO_BASE = "https://geoapi.qweather.com/v2/city"
+const QWEATHER_HOST = process.env.QWEATHER_API_HOST!
+const WEATHER_BASE = `https://${QWEATHER_HOST}/v7/weather`
+const GEO_BASE = `https://${QWEATHER_HOST}/geo/v2/city`
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false })
 
@@ -76,8 +77,8 @@ export function weatherSummary(data: WeatherData): string {
 }
 
 export async function fetchWeather(lat: number, lon: number): Promise<WeatherData | null> {
-  if (!QWEATHER_KEY) {
-    console.warn("[weather] QWEATHER_API_KEY not set")
+  if (!QWEATHER_KEY || !QWEATHER_HOST) {
+    console.warn("[weather] QWEATHER_API_KEY or QWEATHER_API_HOST not set")
     return null
   }
 
