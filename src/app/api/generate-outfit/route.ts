@@ -684,7 +684,9 @@ export async function POST(request: NextRequest) {
     console.log(`[generate-outfit] done in ${Date.now() - t0}ms`)
 
     // 写入缓存，下次复用；上传失败不阻塞——退回内联 base64
-    const { error: upErr } = await supabase.storage
+    // 用 service_role admin client 绕过 RLS，避免 anon+JWT header 传递问题
+    const supabaseAdmin = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { error: upErr } = await supabaseAdmin.storage
       .from(RENDER_BUCKET)
       .upload(objectPath, Buffer.from(b64, "base64"), { contentType: "image/png", upsert: true })
     if (upErr) {
