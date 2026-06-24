@@ -209,7 +209,13 @@ export function queryRules(params: RuleQueryParams): string {
     query.tags = [params.style]
   }
 
-  const grouped = getRulesGroupedForQuery(query)
+  let grouped = getRulesGroupedForQuery(query)
+
+  // 风格标签过滤导致规则为空时，回退到不过滤标签
+  if (grouped.all.length === 0 && query.tags && query.tags.length > 0) {
+    const { tags: _t, ...queryWithoutTags } = query
+    grouped = getRulesGroupedForQuery(queryWithoutTags)
+  }
 
   const lines: string[] = []
   if (grouped.must.length > 0) {
@@ -250,7 +256,13 @@ export function queryFormulas(params: FormulaQueryParams): string {
   if (params.style) query.style = params.style as any
   if (params.maxDifficulty) query.maxDifficulty = params.maxDifficulty
 
-  const result = getFormulas(query)
+  let result = getFormulas(query)
+
+  // 风格过滤导致空结果时回退到不过滤风格
+  if (result.length === 0 && query.style) {
+    const { style: _s, ...queryWithoutStyle } = query
+    result = getFormulas(queryWithoutStyle)
+  }
 
   if (result.length === 0) return "当前条件没有匹配的穿搭公式。"
 

@@ -172,7 +172,7 @@ export const occasionRules: StyleRule[] = [
     priority: 8,
     season: ['春', '夏', '秋'],
     scenes: ['约会'],
-    tags: ['约会', '女生', '裙装'],
+    tags: ['约会', '女生', '裙装', '甜美'],
     examples: ['碎花连衣裙 + 平底凉鞋', '吊带连衣裙 + 开衫 + 小猫跟'],
   },
   {
@@ -186,7 +186,7 @@ export const occasionRules: StyleRule[] = [
     priority: 7,
     season: ['春', '夏', '秋', '冬'],
     scenes: ['约会', '派对'],
-    tags: ['约会', '小心机', '亮点'],
+    tags: ['约会', '小心机', '亮点', '甜美'],
     examples: ['简约穿搭 + 一条特别项链', '基础色一身 + 红色小包'],
   },
 
