@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { chat, type Message, type ToolDef } from "@/lib/ai"
 import { getSystemPrompt, queryRules, queryFormulas } from "@/lib/matching-rules"
+import { stripJSONFromText } from "@/lib/strip-json"
 import { MOCK_CLOTHING } from "@/lib/mock-data"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+// 多轮 agent + DeepSeek 调用可能较久，给足 Hobby 60s 预算
+export const maxDuration = 60
 
 function getToken(request: NextRequest): string | null {
   const auth = request.headers.get("authorization")
@@ -313,43 +317,6 @@ function parsePlansFromText(text: string): Record<string, unknown>[] {
     }
   }
   return plans
-}
-
-/** 从文本中清除 JSON 代码块和裸 JSON 对象 */
-function stripJSONFromText(text: string): string {
-  // 移除 ```json ... ``` 和 ``` ... ``` 代码块
-  let cleaned = text.replace(/```[\s\S]*?```/g, "")
-  // 移除残留的孤立 ``` 标记
-  cleaned = cleaned.replace(/```/g, "")
-
-  // 收集所有裸 JSON 对象的起止位置（先收集后移除，避免字符串突变导致 regex lastIndex 错位）
-  const ranges: [number, number][] = []
-  // 同时匹配 "plan" 和 "items" 两种 JSON 标记
-  const markers = [/\"plan\"\s*:\s*\d+/, /\"items\"\s*:\s*\[/]
-  for (const markerRe of markers) {
-    const rawRe = new RegExp(markerRe.source, "g")
-    let match
-    while ((match = rawRe.exec(cleaned)) !== null) {
-      let start = match.index
-      while (start > 0 && cleaned[start] !== "{") start--
-      if (cleaned[start] !== "{") continue
-      let depth = 0; let i = start
-      for (; i < cleaned.length; i++) {
-        if (cleaned[i] === "{") depth++
-        else if (cleaned[i] === "}") { depth--; if (depth === 0) break }
-      }
-      if (depth === 0 && i > match.index) ranges.push([start, i])
-    }
-  }
-
-  // 逆序移除，保证前面的索引不受影响
-  for (let r = ranges.length - 1; r >= 0; r--) {
-    cleaned = cleaned.slice(0, ranges[r][0]) + cleaned.slice(ranges[r][1] + 1)
-  }
-
-  // 清理多余空行
-  cleaned = cleaned.replace(/\n{3,}/g, "\n\n")
-  return cleaned.trim()
 }
 
 async function agentLoop(

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { getItemById } from "@/lib/mock-data"
 import { getAuthToken, supabase } from "@/lib/supabase"
+import { stripJSONFromText } from "@/lib/strip-json"
 import { useOutfitStore } from "@/store/outfit"
 import type { OutfitState, AIOutfitPlan, AIOutfitItem, ClothingItem } from "@/types"
 import toast from "react-hot-toast"
@@ -250,16 +251,28 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
       const weatherSummary: string | null = weatherData?.summary || null
       const wardrobeItems = wardrobeData || []
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, outfitContext: outfitDesc, weatherSummary, wardrobeItems, gender, bodyType, styleTags }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "请求失败")
+      const reqHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }
+      const reqBody = JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, outfitContext: outfitDesc, weatherSummary, wardrobeItems, gender, bodyType, styleTags })
+
+      // 跨境长请求偶发网络层中断（WebKit "Load failed"），透明重试一次
+      let data: any = null
+      let lastErr: any = null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch("/api/chat", { method: "POST", headers: reqHeaders, body: reqBody })
+          const json = await res.json()
+          if (!res.ok) throw new Error(json.error || "请求失败")
+          data = json
+          break
+        } catch (e: any) {
+          lastErr = e
+          if (attempt === 0) console.warn("[chat] 首次请求失败，重试一次:", e?.message)
+        }
+      }
+      if (!data) throw lastErr || new Error("请求失败")
 
       const assistantMsg: ChatMessage = { role: "assistant", content: data.content, rounds: data.rounds }
       ;(assistantMsg as any).plans = data.plans || []
@@ -481,32 +494,8 @@ function AssistantContent({
   onGenerate: (items: AIOutfitItem[]) => void
   isLatest: boolean
 }) {
-  // 服务端已清理 JSON 代码块，客户端仅做防御性兜底
-  let displayText = text
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/```/g, "")
-  // 收集所有裸 JSON 对象后逆序移除，避免字符串突变导致索引错位
-  const ranges: [number, number][] = []
-  const markers = [/\"plan\"\s*:\s*\d+/, /\"items\"\s*:\s*\[/]
-  for (const markerRe of markers) {
-    const rawRe = new RegExp(markerRe.source, "g")
-    let match
-    while ((match = rawRe.exec(displayText)) !== null) {
-      let start = match.index
-      while (start > 0 && displayText[start] !== "{") start--
-      if (displayText[start] !== "{") continue
-      let depth = 0; let i = start
-      for (; i < displayText.length; i++) {
-        if (displayText[i] === "{") depth++
-        else if (displayText[i] === "}") { depth--; if (depth === 0) break }
-      }
-      if (depth === 0 && i > match.index) ranges.push([start, i])
-    }
-  }
-  for (let r = ranges.length - 1; r >= 0; r--) {
-    displayText = displayText.slice(0, ranges[r][0]) + displayText.slice(ranges[r][1] + 1)
-  }
-  displayText = displayText.replace(/\n{3,}/g, "\n\n").trim()
+  // 服务端已 strip，这里复用同一份共享逻辑兜底（处理未闭合围栏 / 截断 JSON）
+  const displayText = stripJSONFromText(text)
 
   const html = displayText
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
