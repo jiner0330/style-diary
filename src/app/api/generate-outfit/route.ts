@@ -13,7 +13,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v1"
+const PROMPT_VERSION = "v2"
 
 interface OutfitItem {
   slot: string
@@ -280,11 +280,33 @@ function translateDetail(detail: string): string {
   return result || detail.replace(/[\u4e00-\u9fff]+/g, "").trim()
 }
 
-const LENGTH_MAP: Record<string, string> = {
-  "短款": "mini length, above the knee",
-  "常规": "regular length",
-  "中长": "midi length, between knee and calf",
-  "长款": "maxi length, ankle-length or floor-length",
+// 长度语义按品类分：上衣/外套量的是上身落点，裙装/下装量的是腿部落点
+const LENGTH_MAP: Record<string, Record<string, string>> = {
+  top: {
+    "短款": "cropped, waist-length hem",
+    "常规": "regular hip-length hem",
+    "中长": "longline top reaching the hip",
+    "长款": "long tunic length reaching the upper thigh",
+  },
+  outerwear: {
+    "短款": "cropped, waist-length",
+    "常规": "hip-length",
+    "中长": "knee-length",
+    "长款": "long coat falling below the knee",
+  },
+  // dress / bottom / 其它：沿腿部度量
+  default: {
+    "短款": "mini length, above the knee",
+    "常规": "regular length",
+    "中长": "midi length, between knee and calf",
+    "长款": "maxi length, ankle-length or floor-length",
+  },
+}
+
+// sub_category 未收录时的兜底基底名词（避免输出 "color undefined"）
+const SLOT_NOUN: Record<string, string> = {
+  top: "top", bottom: "bottoms", dress: "dress",
+  outerwear: "jacket", shoes: "shoes", bag: "bag",
 }
 
 function describeItem(i: OutfitItem): string {
@@ -293,17 +315,16 @@ function describeItem(i: OutfitItem): string {
   const pattern = i.pattern || ""
   const detail = translateDetail(i.detail || "")
   const shape = (i.sub_category && SUBCAT_SHAPE[i.sub_category]) || ""
-  const lengthHint = (i.length && LENGTH_MAP[i.length]) || ""
+  const lengthTable = LENGTH_MAP[i.slot] || LENGTH_MAP.default
+  const lengthHint = (i.length && lengthTable[i.length]) || ""
 
-  const attrs: string[] = []
-  // Start with the silhouette as the core description
-  if (shape) attrs.push(shape)
-  // Color as adjective prefix
-  attrs[0] = `${color} ${attrs[0]}`
+  // 首项 = 颜色 + 廓形；廓形缺失时退回 slot 通用名词，绝不为 undefined
+  const base = shape || SLOT_NOUN[i.slot] || "garment"
+  const attrs: string[] = [`${color} ${base}`]
   // Material
   if (material) attrs.push(MATERIAL_TEXTURE[material] || `${material} fabric`)
-  // Length constraint — reinforces the sub_category description
-  if (lengthHint) attrs.push(`hemline: ${lengthHint}`)
+  // Length constraint — reinforces the sub_category description (按品类已自带措辞)
+  if (lengthHint) attrs.push(lengthHint)
   // Extra design details
   if (detail) attrs.push(detail)
   // Pattern
