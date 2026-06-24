@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { DndContext } from "@dnd-kit/core"
-import { supabase } from "@/lib/supabase"
+import { supabase, getAuthToken } from "@/lib/supabase"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
 import { enrichScene } from "@/lib/scene-assets"
@@ -399,9 +399,13 @@ function DressingContent() {
     track("generation_start", { sceneId, properties: { angleIndex: apiAngle, itemCount: items.length } })
 
     try {
+      const token = await getAuthToken()
       const res = await fetch("/api/generate-outfit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ gender: userGender, items, angleIndex: apiAngle }),
       })
       const data = await res.json()
@@ -456,9 +460,13 @@ function DressingContent() {
 
     // 后台预生成另一个角度，用户切换时秒出
     const otherUiAngle = angleIndex === 0 ? 1 : 0
+    const bgToken = await getAuthToken()
     fetch("/api/generate-outfit", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(bgToken ? { Authorization: `Bearer ${bgToken}` } : {}),
+      },
       body: JSON.stringify({ gender: userGender, items, angleIndex: toApiAngle(otherUiAngle) }),
     }).catch(() => {})
 
