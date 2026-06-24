@@ -1,25 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { writeFile, mkdir, stat, readFile } from "fs/promises"
 import https from "https"
-import path from "path"
 import { requireAuth } from "@/lib/auth"
+
+// Hobby 计划函数最长 60s；同步生图须在此预算内完成
+export const maxDuration = 60
 
 const OFOXAI_KEY = process.env.OFOXAI_API_KEY!
 const OFOXAI_BASE = process.env.OFOXAI_BASE_URL || "https://api.ofox.ai"
 const MODEL = "openai/gpt-image-2"
-
-const OUT_DIR = path.join(process.cwd(), "public", "outputs")
-
-function taskFile(seed: number) { return path.join(OUT_DIR, `.task-${seed}.json`) }
-function imageFile(seed: number) { return path.join(OUT_DIR, `outfit-${seed}.png`) }
-
-interface TaskData {
-  status: "generating" | "done" | "error"
-  imageUrl?: string
-  prompt?: string
-  promptZh?: string
-  error?: string
-}
 
 interface OutfitItem {
   slot: string
@@ -560,91 +548,44 @@ function buildPromptZh(items: OutfitItem[], angleIndex: number = 0, gender: "fem
   return lines.join("\n")
 }
 
-async function ensureDir() {
-  await mkdir(OUT_DIR, { recursive: true })
-}
+async function runGeneration(prompt: string): Promise<string> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 55_000)
 
-async function runGeneration(seed: number, items: OutfitItem[], angleIndex: number, prompt: string, promptZh: string) {
-  const imgPath = imageFile(seed)
-  const taskPath = taskFile(seed)
-
-  let lastError = ""
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) {
-      const delay = Math.min(2000 * Math.pow(2, attempt - 1), 12000)
-      console.log("[generate-outfit] Retry attempt", attempt + 1, "for seed", seed, "after", delay, "ms")
-      await new Promise(r => setTimeout(r, delay))
-    }
-
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 180_000)
-
-    try {
-      const res = await fetch(`${OFOXAI_BASE}/v1/images/generations`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${OFOXAI_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          prompt,
-          n: 1,
-          size: "768x1152",
-          response_format: "b64_json",
-        }),
-        signal: ctrl.signal,
-        agent: new https.Agent({ rejectUnauthorized: false }),
-      } as any)
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "")
-        const msg = `Image generation failed: ${res.status} ${errText.slice(0, 200)}`
-        // API errors (4xx, content policy etc.) are not retryable
-        console.error("[generate-outfit] Non-retryable error:", msg)
-        lastError = msg
-        break
-      }
-
-      const data = await res.json()
-      const b64 = data.data?.[0]?.b64_json
-
-      if (!b64) {
-        lastError = "No image data returned"
-        console.error("[generate-outfit]", lastError)
-        break
-      }
-
-      await writeFile(imgPath, Buffer.from(b64, "base64"))
-
-      const taskData: TaskData = {
-        status: "done",
-        imageUrl: `/api/outputs/${seed}`,
+  try {
+    const res = await fetch(`${OFOXAI_BASE}/v1/images/generations`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OFOXAI_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
         prompt,
-        promptZh,
-      }
-      await writeFile(taskPath, JSON.stringify(taskData))
-      console.log("[generate-outfit] Done:", seed)
-      return
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Internal server error"
-      console.error("[generate-outfit] Attempt", attempt + 1, "failed:", message)
-      lastError = message
-      // "fetch failed" and timeout are network errors → retry
-      // Other errors (e.g. JSON parse) are not retryable
-      if (message !== "fetch failed" && !message.includes("abort")) break
-    } finally {
-      clearTimeout(t)
-    }
-  }
+        n: 1,
+        size: "768x1152",
+        response_format: "b64_json",
+      }),
+      signal: ctrl.signal,
+      agent: new https.Agent({ rejectUnauthorized: false }),
+    } as any)
 
-  console.error("[generate-outfit] All attempts failed for seed", seed, ":", lastError)
-  const taskData: TaskData = { status: "error", error: lastError }
-  await writeFile(taskPath, JSON.stringify(taskData)).catch(() => {})
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "")
+      throw new Error(`Image generation failed: ${res.status} ${errText.slice(0, 200)}`)
+    }
+
+    const data = await res.json()
+    const b64 = data.data?.[0]?.b64_json
+    if (!b64) throw new Error("No image data returned")
+
+    return b64
+  } finally {
+    clearTimeout(t)
+  }
 }
 
-// POST: 提交生图任务（异步）
+// POST: 同步生图，直接返回 base64（Vercel serverless 不能写文件/跑后台任务）
 export async function POST(request: NextRequest) {
   const userId = await requireAuth(request)
   if (!userId) {
@@ -668,120 +609,21 @@ export async function POST(request: NextRequest) {
     const prompt = buildPrompt(items, angleIndex, safeGender)
     const promptZh = buildPromptZh(items, angleIndex, safeGender)
 
-    const itemFingerprint = items
-      .map((i) => [i.name, i.color, i.material ?? "", i.sub_category ?? "", i.detail ?? "", i.pattern ?? "", i.length ?? ""].join("|"))
-      .sort().join("||")
-    const seed = Array.from(itemFingerprint + angleIndex).reduce((s, c) => ((s << 5) - s + c.charCodeAt(0)) | 0, 0)
+    const t0 = Date.now()
+    const b64 = await runGeneration(prompt)
+    console.log(`[generate-outfit] done in ${Date.now() - t0}ms`)
 
-    await ensureDir()
-    const imgPath = imageFile(seed)
-    const taskPath = taskFile(seed)
-
-    // 缓存命中
-    const cached = await stat(imgPath).then(() => true).catch(() => false)
-    if (cached) {
-      console.log("[generate-outfit] Cache hit:", seed)
-      return NextResponse.json({
-        taskId: seed,
-        status: "done",
-        imageUrl: `/api/outputs/${seed}`,
-        prompt,
-        promptZh,
-        mode: "text_only",
-        cached: true,
-      })
-    }
-
-    // 检查是否已有进行中的任务
-    const existingTaskStat = await stat(taskPath).then((s) => s).catch(() => null)
-    const existing = existingTaskStat ? await readFile(taskPath, "utf-8").then((raw) => JSON.parse(raw) as TaskData).catch(() => null) : null
-    const isStale = existing?.status === "generating" && existingTaskStat
-      && Date.now() - existingTaskStat.mtimeMs > 5 * 60 * 1000
-
-    if (existing?.status === "generating" && !isStale) {
-      console.log("[generate-outfit] Task already generating:", seed)
-      return NextResponse.json({ taskId: seed, status: "generating" })
-    }
-
-    if (isStale) {
-      console.log("[generate-outfit] Stale task, restarting:", seed)
-    }
-
-    // 写入进行中任务文件
-    const taskData: TaskData = { status: "generating" }
-    await writeFile(taskPath, JSON.stringify(taskData))
-
-    // 后台生成，不等待
-    console.log("[generate-outfit] Starting background generation:", seed)
-    runGeneration(seed, items, angleIndex, prompt, promptZh).catch((err) => {
-      console.error("[generate-outfit] Background task crashed:", err)
+    return NextResponse.json({
+      status: "done",
+      imageUrl: `data:image/png;base64,${b64}`,
+      prompt,
+      promptZh,
+      mode: "text_only",
     })
-
-    return NextResponse.json({ taskId: seed, status: "generating" })
   } catch (err) {
     console.error("[generate-outfit] POST error:", err)
     return NextResponse.json(
       { error: "生成失败，请稍后重试" },
-      { status: 500 }
-    )
-  }
-}
-
-// GET: 轮询生图状态
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const taskId = searchParams.get("taskId")
-
-    if (!taskId) {
-      return NextResponse.json({ error: "Missing taskId" }, { status: 400 })
-    }
-
-    const seed = parseInt(taskId, 10)
-    if (isNaN(seed)) {
-      return NextResponse.json({ error: "Invalid taskId" }, { status: 400 })
-    }
-
-    await ensureDir()
-    const imgPath = imageFile(seed)
-    const taskPath = taskFile(seed)
-
-    // 图片已存在 → 完成
-    const imgExists = await stat(imgPath).then(() => true).catch(() => false)
-    if (imgExists) {
-      const taskInfo = await stat(taskPath).then(async () => {
-        const raw = await readFile(taskPath, "utf-8")
-        return JSON.parse(raw) as TaskData
-      }).catch(() => null)
-
-      return NextResponse.json({
-        taskId: seed,
-        status: "done",
-        imageUrl: taskInfo?.imageUrl || `/api/outputs/${seed}`,
-        prompt: taskInfo?.prompt || "",
-        promptZh: taskInfo?.promptZh || "",
-        mode: "text_only",
-      })
-    }
-
-    // 任务文件存在 → 检查状态
-    const taskInfo = await stat(taskPath).then(async () => {
-      const raw = await readFile(taskPath, "utf-8")
-      return JSON.parse(raw) as TaskData
-    }).catch(() => null)
-
-    if (taskInfo) {
-      if (taskInfo.status === "error") {
-        return NextResponse.json({ taskId: seed, status: "error", error: taskInfo.error || "生成失败" })
-      }
-      return NextResponse.json({ taskId: seed, status: "generating" })
-    }
-
-    return NextResponse.json({ taskId: seed, status: "not_found" })
-  } catch (err) {
-    console.error("[generate-outfit] GET error:", err)
-    return NextResponse.json(
-      { error: "查询失败，请稍后重试" },
       { status: 500 }
     )
   }

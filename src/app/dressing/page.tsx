@@ -457,19 +457,6 @@ function DressingContent() {
 
     const evalPromise = evaluateOutfit()
     await generateForAngle(angleIndex)
-
-    // 后台预生成另一个角度，用户切换时秒出
-    const otherUiAngle = angleIndex === 0 ? 1 : 0
-    const bgToken = await getAuthToken()
-    fetch("/api/generate-outfit", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(bgToken ? { Authorization: `Bearer ${bgToken}` } : {}),
-      },
-      body: JSON.stringify({ gender: userGender, items, angleIndex: toApiAngle(otherUiAngle) }),
-    }).catch(() => {})
-
     await evalPromise
   }
 
