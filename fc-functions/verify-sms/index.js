@@ -1,7 +1,9 @@
-const Client = require("@alicloud/dypnsapi20170525")
+const http = require("http")
+const crypto = require("crypto")
+const Client = require("@alicloud/dypnsapi20170525").default
+const { SendSmsVerifyCodeRequest, CheckSmsVerifyCodeRequest } = require("@alicloud/dypnsapi20170525")
 const { Config } = require("@alicloud/openapi-core/dist/utils")
 const { createClient } = require("@supabase/supabase-js")
-const crypto = require("crypto")
 
 const SUPA_URL = "https://vklltmfmttuaahqmwksu.supabase.co"
 
@@ -57,34 +59,34 @@ function phoneToEmail(phone) {
   return `p${clean}@phone.style-diary.internal`
 }
 
-function json(resp, status, data) {
-  Object.entries(CORS).forEach(([k, v]) => resp.setHeader(k, v))
-  resp.statusCode = status
-  resp.setHeader("Content-Type", "application/json")
-  resp.end(JSON.stringify(data))
+function json(res, status, data) {
+  Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v))
+  res.statusCode = status
+  res.setHeader("Content-Type", "application/json")
+  res.end(JSON.stringify(data))
 }
 
-exports.handler = async (req, resp) => {
+const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
-    Object.entries(CORS).forEach(([k, v]) => resp.setHeader(k, v))
-    resp.statusCode = 204
-    resp.end()
+    Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v))
+    res.statusCode = 204
+    res.end()
     return
   }
 
   try {
     const { phone, code } = await parseBody(req)
-    if (!phone || !code) return json(resp, 400, { error: "手机号和验证码不能为空" })
+    if (!phone || !code) return json(res, 400, { error: "手机号和验证码不能为空" })
 
     const digits = phone.replace(/\D/g, "")
-    if (digits.length < 8 || digits.length > 15) return json(resp, 400, { error: "手机号格式不正确" })
-    if (!/^\d{4,8}$/.test(code)) return json(resp, 400, { error: "验证码格式不正确" })
+    if (digits.length < 8 || digits.length > 15) return json(res, 400, { error: "手机号格式不正确" })
+    if (!/^\d{4,8}$/.test(code)) return json(res, 400, { error: "验证码格式不正确" })
 
     // 1. 校验阿里云短信验证码
     const smsClient = getSMSClient()
     const { phoneNumber, countryCode } = parsePhone(phone)
 
-    const checkReq = new Client.CheckSmsVerifyCodeRequest({
+    const checkReq = new CheckSmsVerifyCodeRequest({
       phoneNumber,
       countryCode,
       verifyCode: code,
@@ -93,7 +95,7 @@ exports.handler = async (req, resp) => {
     console.log("[verify-sms] check:", JSON.stringify({ code: checkRes.body?.code }))
 
     if (checkRes.body?.code !== "OK") {
-      return json(resp, 500, { error: `验证码校验失败：${checkRes.body?.message}` })
+      return json(res, 500, { error: `验证码校验失败：${checkRes.body?.message}` })
     }
 
     // 2. 创建 Supabase 用户（阿里云 FC 上海 → Supabase 上海，同城直连）
@@ -116,13 +118,17 @@ exports.handler = async (req, resp) => {
         console.log("[verify-sms] user already exists, proceeding")
       } else {
         console.error("[verify-sms] createUser failed:", createErr.message)
-        // 继续返回凭据，前端会尝试 signIn / signUp
       }
     }
 
-    return json(resp, 200, { email, password })
+    json(res, 200, { email, password })
   } catch (err) {
     console.error("[verify-sms]", err)
-    return json(resp, 500, { error: `验证失败：${err.message}` })
+    json(res, 500, { error: `验证失败：${err.message}` })
   }
-}
+})
+
+const port = process.env.FC_SERVER_PORT || 9000
+server.listen(port, () => {
+  console.log(`[verify-sms] listening on ${port}`)
+})

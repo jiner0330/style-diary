@@ -43,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# fc-functions (阿里云 FC) — 依赖与打包产物，部署时本地生成
+fc-functions/**/node_modules/
+fc-functions/**/package-lock.json
+fc-functions/**/*.zip

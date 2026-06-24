@@ -1,4 +1,6 @@
-const Client = require("@alicloud/dypnsapi20170525")
+const http = require("http")
+const Client = require("@alicloud/dypnsapi20170525").default
+const { SendSmsVerifyCodeRequest } = require("@alicloud/dypnsapi20170525")
 const { Config } = require("@alicloud/openapi-core/dist/utils")
 
 const CORS = {
@@ -36,34 +38,34 @@ function parsePhone(raw) {
   return { phoneNumber: digits, countryCode: "86" }
 }
 
-function json(resp, status, data) {
-  Object.entries(CORS).forEach(([k, v]) => resp.setHeader(k, v))
-  resp.statusCode = status
-  resp.setHeader("Content-Type", "application/json")
-  resp.end(JSON.stringify(data))
+function json(res, status, data) {
+  Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v))
+  res.statusCode = status
+  res.setHeader("Content-Type", "application/json")
+  res.end(JSON.stringify(data))
 }
 
-exports.handler = async (req, resp) => {
+const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
-    Object.entries(CORS).forEach(([k, v]) => resp.setHeader(k, v))
-    resp.statusCode = 204
-    resp.end()
+    Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v))
+    res.statusCode = 204
+    res.end()
     return
   }
 
   try {
     const { phone } = await parseBody(req)
-    if (!phone) return json(resp, 400, { error: "请输入手机号" })
+    if (!phone) return json(res, 400, { error: "请输入手机号" })
 
     const digits = phone.replace(/\D/g, "")
     if (digits.length < 8 || digits.length > 15) {
-      return json(resp, 400, { error: "手机号格式不正确" })
+      return json(res, 400, { error: "手机号格式不正确" })
     }
 
     const client = getClient()
     const { phoneNumber, countryCode } = parsePhone(phone)
 
-    const reqObj = new Client.SendSmsVerifyCodeRequest({
+    const reqObj = new SendSmsVerifyCodeRequest({
       phoneNumber,
       countryCode,
       signName: process.env.ALIBABA_SMS_SIGN_NAME,
@@ -75,16 +77,21 @@ exports.handler = async (req, resp) => {
       interval: 60,
     })
 
-    const res = await client.sendSmsVerifyCodeWithOptions(reqObj, { ignoreSSL: true })
+    const smsRes = await client.sendSmsVerifyCodeWithOptions(reqObj, { ignoreSSL: true })
     console.log("[send-sms] OK:", phoneNumber)
 
-    if (res.body?.code !== "OK") {
-      return json(resp, 500, { error: `[${res.body?.code}] ${res.body?.message || "短信发送失败"}` })
+    if (smsRes.body?.code !== "OK") {
+      return json(res, 500, { error: `[${smsRes.body?.code}] ${smsRes.body?.message || "短信发送失败"}` })
     }
 
-    return json(resp, 200, { ok: true })
+    json(res, 200, { ok: true })
   } catch (err) {
     console.error("[send-sms]", err)
-    return json(resp, 500, { error: `发送失败：${err.message}` })
+    json(res, 500, { error: `发送失败：${err.message}` })
   }
-}
+})
+
+const port = process.env.FC_SERVER_PORT || 9000
+server.listen(port, () => {
+  console.log(`[send-sms] listening on ${port}`)
+})

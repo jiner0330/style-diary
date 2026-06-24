@@ -160,6 +160,58 @@ git ls-files -s | grep "^120000"
       └─ Vercel 环境变量是否配齐（对照 .env.example）
 ```
 
+## 网络架构：境内外链路分离
+
+### 核心原则
+
+Vercel hkg1（香港）节点无法稳定访问中国大陆服务，必须将国内/境外调用分离到不同服务器：
+- **国内服务**（阿里云 SMS、Supabase 上海）→ 阿里云 FC 上海 或 客户端直连
+- **境外服务**（ofox.ai、DeepSeek）→ Vercel HK
+
+### 当前架构
+
+```
+浏览器（国内）
+  ├─ 阿里云 FC 上海 → 阿里云 SMS + Supabase 上海（同城）
+  ├─ supabase-js 客户端直连 → Supabase 上海
+  └─ Vercel HK → DeepSeek / ofox.ai（境外）
+```
+
+### 短信认证踩坑记录（2026-06-24）
+
+**问题**：手机号登录提示"创建用户失败"，后续改为短信发送失败、验证码校验失败。
+
+**根因**：Vercel hkg1 → 阿里云 `dypnsapi.aliyuncs.com` 间歇性 ConnectTimeout，Vercel hkg1 → Supabase `vklltmfmttuaahqmwksu.supabase.co` 持续 ENOTFOUND DNS 解析失败。同一个 Vercel 节点无法同时服务国内和境外链路。
+
+**解决方案**：将 `send-sms` 和 `verify-sms` 两个函数从 Vercel 拆出，独立部署到阿里云函数计算（Web 函数、Node.js 22、上海区域）。前端通过 `NEXT_PUBLIC_FC_SEND_SMS_URL` 和 `NEXT_PUBLIC_FC_VERIFY_SMS_URL` 直调 FC 公网 URL。
+
+**SDK 兼容问题**：`@alicloud/dypnsapi20170525` 在 CommonJS `require` 下的正确用法：
+```javascript
+const Client = require("@alicloud/dypnsapi20170525").default
+const { SendSmsVerifyCodeRequest, CheckSmsVerifyCodeRequest } = require("@alicloud/dypnsapi20170525")
+```
+三个连续错误：`MODULE_NOT_FOUND`（缺依赖）→ `Client is not a constructor`（缺 .default）→ `Client.SendSmsVerifyCodeRequest is not a constructor`（命名导出需解构）。
+
+**阿里云 FC 部署要点**：
+- 函数类型选「Web 函数」，HTTP 触发器选「无需认证」
+- 超时设 30s，内存 512MB
+- 环境变量 `PHONE_USER_SECRET` 需在 Vercel 和阿里云 FC 两端保持一致
+- 函数代码需显式 `http.createServer` + `server.listen(FC_SERVER_PORT || 9000)` 常驻进程
+- 在线编辑器部署不自动 `npm install`，需上传含 node_modules 的 zip 包
+
+### 仍有风险的调用
+
+| 调用 | 路径 | 状态 |
+|------|------|:--:|
+| `/api/chat` → `supabase.auth.getUser()` | Vercel HK → Supabase 上海 | ⚠️ 未验证 |
+| `/api/weather` → 和风天气 | Vercel HK → 和风天气 | ⚠️ 需验证 |
+
+### fc-functions 目录
+
+- `fc-functions/send-sms/` — 短信发送（阿里云 FC）
+- `fc-functions/verify-sms/` — 验证码校验 + Supabase 用户创建（阿里云 FC）
+- 部署方式：本地 `npm install --production` 后打包 zip，上传到阿里云 FC
+
 ## 重要规则
 
 - **不要自行切换 API**：遇到 API 端点报错（如 404、400）时，先分析清楚兼容性和影响范围，确认变更是否会影响其他已有功能模块。向用户说明分析结论，得到确认回复后再执行修改。禁止未经确认直接替换 API 端点或模型。
