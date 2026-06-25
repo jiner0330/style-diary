@@ -696,7 +696,7 @@ function DressingContent() {
                 <img
                   src={scene.illustration_url}
                   alt=""
-                  className="w-full h-full object-cover opacity-20"
+                  className="w-full h-full object-cover opacity-40"
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-soft-white/60 via-transparent to-soft-white/60" />
               </div>
