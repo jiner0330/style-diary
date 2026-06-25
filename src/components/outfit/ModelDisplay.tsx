@@ -10,8 +10,8 @@ const ANGLE_LABELS = ["正面", "背面"]
 const SWIPE_THRESHOLD = 30
 const MAX_VISUAL_SHIFT = 120
 
-// 把矩形白底人台羽化成柔和的纵向椭圆，溶进近白场景背景，去掉生硬的方框感
-const MANNEQUIN_MASK = "radial-gradient(ellipse 66% 88% at 50% 50%, #000 55%, transparent 96%)"
+// 人台缩放：留出底边距，避免膝盖以下超出场景安全区（从顶部缩放，脚部上提）
+const FIGURE_SCALE = 0.85
 
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
@@ -177,9 +177,9 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className={`relative w-full max-w-[220px] md:max-w-[420px] rounded-3xl transition-[box-shadow] duration-500
+        className={`relative w-full max-w-[220px] md:max-w-[420px] rounded-3xl
           overflow-hidden select-none
-          ${isDragging ? "cursor-grabbing shadow-lg" : "cursor-ew-resize"}`}
+          ${isDragging ? "cursor-grabbing" : "cursor-ew-resize"}`}
         style={{ aspectRatio: "4/7", touchAction: "none" }}
       >
         {/* 预加载所有角度图片（隐藏） */}
@@ -197,7 +197,8 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         <div
           className="mannequin-bg absolute inset-0 flex items-center justify-center rounded-3xl"
           style={{
-            transform: `translateX(${visualShift}px)`,
+            transform: `translateX(${visualShift}px) scale(${FIGURE_SCALE})`,
+            transformOrigin: "50% 0%",
             transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1.2)",
           }}
         >
@@ -208,8 +209,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
             draggable={false}
             style={{
               opacity: !imagesLoaded.has(ROTATION_ANGLES[angleIndex]) ? 0.6 : 1,
-              WebkitMaskImage: MANNEQUIN_MASK,
-              maskImage: MANNEQUIN_MASK,
+              filter: "drop-shadow(0 6px 14px rgba(60,50,45,0.30))",
             }}
           />
         </div>
