@@ -16,6 +16,7 @@ import ResultModal from "@/components/outfit/ResultModal"
 import GenerationBar from "@/components/outfit/GenerationBar"
 import ChatPanel from "@/components/chat/ChatPanel"
 import AmbientSound from "@/components/scene/AmbientSound"
+import SceneParticles from "@/components/scene/SceneParticles"
 import type { Scene, ClothingItem, AIOutfitItem } from "@/types"
 import toast from "react-hot-toast"
 
@@ -700,6 +701,7 @@ function DressingContent() {
                 <div className="absolute inset-0 bg-gradient-to-b from-soft-white/60 via-transparent to-soft-white/60" />
               </div>
             )}
+            <SceneParticles name={scene?.name} />
             <div className="relative z-10 flex flex-col items-center w-full">
             {profileLoading ? (
               <div className="flex items-center justify-center w-full" style={{ aspectRatio: "4/7", maxWidth: "220px" }}>
