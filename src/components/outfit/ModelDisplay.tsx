@@ -14,6 +14,10 @@ const MAX_VISUAL_SHIFT = 120
 const FIGURE_SCALE = 0.74
 // 人台垂直偏移（百分比，负值上移）；脚位 ≈ 0.03 + 0.81*FIGURE_SCALE，越小脚越高
 const FIGURE_OFFSET_Y = -3
+// 脚部在原图（未变换）中的容器纵向占比（实测 ML 抠图 ≈0.90），用于把角度指示器/标签贴到脚下方
+const FIGURE_FEET_FRAC = 0.9
+// 移动端人台整体放大系数：移动端画面里人台偏小，单独放大；桌面端仍用 FIGURE_SCALE
+const FIGURE_MOBILE_BOOST = 1.2
 
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
@@ -52,6 +56,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
 
   const [isDragging, setIsDragging] = useState(false)
   const [visualShift, setVisualShift] = useState(0)
+  const [isMobile, setIsMobile] = useState(false)
   const isDraggingRef = useRef(false)
   const dragStartX = useRef(0)
   const dragStartIndex = useRef(0)
@@ -69,6 +74,15 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gender])
+
+  // 移动端检测（<768px，对齐 md: 断点），移动端人台单独放大
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)")
+    const onChange = () => setIsMobile(mq.matches)
+    onChange()
+    mq.addEventListener("change", onChange)
+    return () => mq.removeEventListener("change", onChange)
+  }, [])
 
   function startDrag(clientX: number) {
     isDraggingRef.current = true
@@ -166,12 +180,16 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     }
   }
 
-  // 人台与锚点共用同一变换，保证缩小/上移后锚点始终贴合图形
+  // 移动端整体放大（FIGURE_MOBILE_BOOST），桌面端用 FIGURE_SCALE
+  const figureScale = isMobile ? FIGURE_SCALE * FIGURE_MOBILE_BOOST : FIGURE_SCALE
+  // 人台与锚点共用同一变换，保证缩放/上移后锚点始终贴合图形
   const figureTransform = {
-    transform: `translateX(${visualShift}px) translateY(${FIGURE_OFFSET_Y}%) scale(${FIGURE_SCALE})`,
+    transform: `translateX(${visualShift}px) translateY(${FIGURE_OFFSET_Y}%) scale(${figureScale})`,
     transformOrigin: "50% 0%",
     transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1.2)",
   }
+  // 脚部变换后落点（容器纵向占比），角度指示器/标签据此贴在脚下方一并随人台移动
+  const feetY = figureScale * FIGURE_FEET_FRAC + FIGURE_OFFSET_Y / 100
 
   return (
     <div className="flex flex-col items-center w-full py-4 md:py-6 md:pb-6">
@@ -251,8 +269,9 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         ))}
         </div>
 
-        {/* 角度指示器 */}
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex gap-1">
+        {/* 角度指示器（贴在脚下方，随人台缩放/位移同步） */}
+        <div className="absolute left-1/2 -translate-x-1/2 z-10 flex gap-1"
+             style={{ top: `${(feetY + 0.06) * 100}%` }}>
           {ROTATION_ANGLES.map((_, i) => (
             <span
               key={i}
@@ -262,8 +281,9 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
           ))}
         </div>
 
-        {/* 角度标签 */}
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex gap-12">
+        {/* 角度标签（贴在脚下方、指示器上方，随人台缩放/位移同步） */}
+        <div className="absolute left-1/2 -translate-x-1/2 z-10 flex gap-12"
+             style={{ top: `${(feetY + 0.035) * 100}%` }}>
           {ANGLE_LABELS.map((label, i) => (
             <span
               key={i}
