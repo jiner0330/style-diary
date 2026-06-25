@@ -10,10 +10,10 @@ const ANGLE_LABELS = ["正面", "背面"]
 const SWIPE_THRESHOLD = 30
 const MAX_VISUAL_SHIFT = 120
 
-// 人台缩放：留出底边距，避免膝盖以下超出场景安全区（从顶部缩放，脚部上提）
-const FIGURE_SCALE = 0.85
-// 人台垂直偏移（百分比，负值上移），让脚部不压到底边安全区
-const FIGURE_OFFSET_Y = -5
+// 人台缩放：头顶已贴容器顶边，纯上移会裁到头；从顶部锚点缩小才能在不裁头的前提下把脚提起来
+const FIGURE_SCALE = 0.74
+// 人台垂直偏移（百分比，负值上移）；脚位 ≈ 0.03 + 0.81*FIGURE_SCALE，越小脚越高
+const FIGURE_OFFSET_Y = -3
 
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
