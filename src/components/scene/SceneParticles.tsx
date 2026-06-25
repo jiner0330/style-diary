@@ -99,16 +99,16 @@ const EFFECTS: Record<ParticleType, EffectCfg> = {
     fx: "fx-mote",
     shape: "circle",
     scatter: true,
-    blur: 0.8,
+    blur: 0.5, // 比原 0.8 锐一点，边缘更清晰 = 对比更强
     glow: true, // 浮尘被窗光照亮：柔光是可见性关键，缺它会融进暖色书店底图
-    colors: ["#fffaf0", "#fff0d4", "#ffffff"],
+    colors: ["#ffffff", "#fffaf0", "#fff3da"], // 提亮以白为主，压在已调清晰的暖背景上更跳
     swayMin: 0,
     swayMax: 0,
     glyphMin: 3,
     glyphMax: 5.5,
     driftMin: 10,
     driftMax: 26,
-    layers: [{ z: "z-[5]", count: 18, sizeMin: 2.5, sizeMax: 6, opMin: 0.4, opMax: 0.85, durMin: 16, durMax: 26 }],
+    layers: [{ z: "z-[5]", count: 28, sizeMin: 3, sizeMax: 7, opMin: 0.55, opMax: 1, durMin: 16, durMax: 26 }],
   },
 }
 
