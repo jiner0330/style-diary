@@ -514,7 +514,7 @@ function DressingContent() {
         <header className="flex flex-col bg-soft-white border-b border-warm-gray/20">
           {/* 第一行：场景名居中，🔊 紧邻其右，返回靠最右 */}
           <div className="relative flex items-center justify-center gap-2 px-4 pt-2.5 pb-1">
-            <h2 className="text-sm font-medium text-charcoal">
+            <h2 className="text-xl font-semibold bg-[linear-gradient(90deg,#f43f5e,#fb923c,#facc15,#34d399,#60a5fa,#a78bfa)] bg-clip-text text-transparent">
               {scene?.name || "自由搭配"}
             </h2>
             <AmbientSound name={scene?.name || ""} moodTags={scene?.mood_tags || []} ambientSoundUrl={scene?.ambient_sound_url || null} />
