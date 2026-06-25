@@ -12,6 +12,8 @@ const MAX_VISUAL_SHIFT = 120
 
 // 人台缩放：留出底边距，避免膝盖以下超出场景安全区（从顶部缩放，脚部上提）
 const FIGURE_SCALE = 0.85
+// 人台垂直偏移（百分比，负值上移），让脚部不压到底边安全区
+const FIGURE_OFFSET_Y = -5
 
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
@@ -197,7 +199,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         <div
           className="mannequin-bg absolute inset-0 flex items-center justify-center rounded-3xl"
           style={{
-            transform: `translateX(${visualShift}px) scale(${FIGURE_SCALE})`,
+            transform: `translateX(${visualShift}px) translateY(${FIGURE_OFFSET_Y}%) scale(${FIGURE_SCALE})`,
             transformOrigin: "50% 0%",
             transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1.2)",
           }}
