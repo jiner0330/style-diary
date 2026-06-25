@@ -166,6 +166,13 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     }
   }
 
+  // 人台与锚点共用同一变换，保证缩小/上移后锚点始终贴合图形
+  const figureTransform = {
+    transform: `translateX(${visualShift}px) translateY(${FIGURE_OFFSET_Y}%) scale(${FIGURE_SCALE})`,
+    transformOrigin: "50% 0%",
+    transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1.2)",
+  }
+
   return (
     <div className="flex flex-col items-center w-full py-4 md:py-6 md:pb-6">
       <p className="text-[11px] text-warm-gray/60 mb-3 tracking-wide">
@@ -198,11 +205,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         {/* 人台底图 — translateX 跟手 + 松手回弹 */}
         <div
           className="mannequin-bg absolute inset-0 flex items-center justify-center rounded-3xl"
-          style={{
-            transform: `translateX(${visualShift}px) translateY(${FIGURE_OFFSET_Y}%) scale(${FIGURE_SCALE})`,
-            transformOrigin: "50% 0%",
-            transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1.2)",
-          }}
+          style={figureTransform}
         >
           <img
             src={mannequinSrc}
@@ -216,12 +219,13 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
           />
         </div>
 
-        {/* 身体标记点 */}
+        {/* 身体标记点（与人台同步缩放/位移，锚点贴合图形） */}
+        <div className="absolute inset-0 z-10 pointer-events-none" style={figureTransform}>
         {merged.map((m) => (
           <div
             key={m.slot}
             data-marker="true"
-            className="absolute z-10 pointer-events-none flex flex-col items-center transition-[width,height,opacity] duration-300"
+            className="absolute pointer-events-none flex flex-col items-center transition-[width,height,opacity] duration-300"
             style={{ top: m.top, left: m.left, transform: "translate(-50%, -50%)" }}
           >
             <span
@@ -245,6 +249,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
             )}
           </div>
         ))}
+        </div>
 
         {/* 角度指示器 */}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex gap-1">
