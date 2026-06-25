@@ -55,7 +55,7 @@ function DressingContent() {
   const [genError, setGenError] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
 	const [showHistory, setShowHistory] = useState(false)
-	const [wardrobeExpanded, setWardrobeExpanded] = useState(false)
+	const [desktopPanel, setDesktopPanel] = useState<"wardrobe" | "chat" | null>(null)
 	const [mobileTab, setMobileTab] = useState<"wardrobe" | "chat" | null>(null)
 	const [mobilePanelHeight, setMobilePanelHeight] = useState<"half" | "full">("half")
 	const [saveDialogOpen, setSaveDialogOpen] = useState(false)
@@ -510,15 +510,24 @@ function DressingContent() {
       <div className="flex flex-col flex-1 h-[100dvh]">
         {/* 顶部操作栏 */}
         <header className="flex items-center gap-3 px-4 py-3 bg-soft-white border-b border-warm-gray/20">
-          {/* 桌面端衣橱开关 */}
+          {/* 桌面端面板切换：衣橱 / 搭搭，同一时间只开一个 */}
           <button
-            onClick={() => setWardrobeExpanded(!wardrobeExpanded)}
+            onClick={() => setDesktopPanel(prev => prev === "wardrobe" ? null : "wardrobe")}
             className={`hidden md:flex text-sm transition-colors ${
-              wardrobeExpanded ? "text-rose" : "text-warm-gray hover:text-rose"
+              desktopPanel === "wardrobe" ? "text-rose" : "text-warm-gray hover:text-rose"
             }`}
-            title={wardrobeExpanded ? "收起衣橱" : "打开衣橱"}
+            title="衣橱"
           >
             👗
+          </button>
+          <button
+            onClick={() => setDesktopPanel(prev => prev === "chat" ? null : "chat")}
+            className={`hidden md:flex text-sm transition-colors ${
+              desktopPanel === "chat" ? "text-charcoal" : "text-warm-gray hover:text-charcoal"
+            }`}
+            title="搭搭"
+          >
+            💬
           </button>
           <button
             onClick={() => router.push('/scenes')}
@@ -612,8 +621,8 @@ function DressingContent() {
 
         {/* 主体三区布局 */}
         <div className="flex-1 flex overflow-hidden">
-          {/* 左：衣橱面板 — 桌面端 */}
-          {wardrobeExpanded && (
+          {/* 左：衣橱面板 — 桌面端，与聊天互斥 */}
+          {desktopPanel === "wardrobe" && (
             <div className="hidden md:block md:w-[35%] lg:w-[30%] h-full overflow-hidden relative border-r border-warm-gray/20">
               <WardrobePanel
                 gender={userGender}
@@ -624,7 +633,7 @@ function DressingContent() {
                 hasHistory={history.length > 0}
               />
               <button
-                onClick={() => setWardrobeExpanded(false)}
+                onClick={() => setDesktopPanel(null)}
                 className="absolute top-3 -right-3 z-10 w-6 h-6 rounded-full bg-rose/10 text-rose text-xs
                            flex items-center justify-center hover:bg-rose/20 transition-colors"
                 title="收起衣橱"
@@ -755,17 +764,33 @@ function DressingContent() {
             </div>
           </div>
 
-          {/* 右：搭搭聊天（桌面端常显） */}
-          <div className="hidden lg:flex lg:w-[28%] h-full flex-col overflow-hidden border-l border-warm-gray/20">
-            <ChatPanel
-              currentOutfit={outfit}
-              onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
-              onWearSet={(items) => { wearingAISetRef.current = true; wearSet(items) }}
-              userCoords={userCoords}
-              gender={userGender}
-              bodyType={userBodyType}
-              styleTags={userStyleTags}
-            />
+          {/* 右：搭搭聊天 — 桌面端侧边面板，常驻挂载不丢对话，与衣橱互斥 */}
+          <div className={desktopPanel === "chat"
+            ? "hidden md:flex md:w-[38%] lg:w-[35%] h-full flex-col overflow-hidden border-l border-warm-gray/20"
+            : "hidden"
+          }>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-warm-gray/10">
+              <span className="text-sm font-medium text-charcoal">搭搭</span>
+              <button
+                onClick={() => setDesktopPanel(null)}
+                className="w-6 h-6 rounded-full bg-charcoal/5 text-charcoal/50 text-xs
+                           flex items-center justify-center hover:bg-charcoal/10 transition-colors"
+                title="收起聊天"
+              >
+                ▶
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <ChatPanel
+                currentOutfit={outfit}
+                onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
+                onWearSet={(items) => { wearingAISetRef.current = true; wearSet(items) }}
+                userCoords={userCoords}
+                gender={userGender}
+                bodyType={userBodyType}
+                styleTags={userStyleTags}
+              />
+            </div>
           </div>
         </div>
 
