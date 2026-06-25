@@ -403,6 +403,8 @@ function DressingContent() {
     setGeneratingAngle(apiAngle)
     generatingAngleRef.current = apiAngle
     setResultAngle(angleIdx)
+    // 立即弹出结果弹窗，让用户看到人台「正在定制穿衣」的生成过程
+    setShowResult(true)
     genStartTimeRef.current = Date.now()
     track("generation_start", { sceneId, properties: { angleIndex: apiAngle, itemCount: items.length } })
 
