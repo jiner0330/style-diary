@@ -515,12 +515,12 @@ function DressingContent() {
           {/* 桌面端面板切换：衣橱 / 搭搭，同一时间只开一个 */}
           <button
             onClick={() => setDesktopPanel(prev => prev === "wardrobe" ? null : "wardrobe")}
-            className={`hidden md:flex text-sm transition-colors ${
-              desktopPanel === "wardrobe" ? "text-rose" : "text-warm-gray hover:text-rose"
+            className={`hidden md:flex text-base transition-transform hover:scale-110 ${
+              desktopPanel === "wardrobe" ? "scale-110" : ""
             }`}
             title="衣橱"
           >
-            👗
+            {userGender === "male" ? "👔" : "👗"}
           </button>
           <button
             onClick={() => setDesktopPanel(prev => prev === "chat" ? null : "chat")}
