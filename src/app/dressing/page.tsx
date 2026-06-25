@@ -511,39 +511,45 @@ function DressingContent() {
     <DndContext onDragEnd={handleDragEnd}>
       <div className="flex flex-col flex-1 h-[100dvh]">
         {/* 顶部操作栏 */}
-        <header className="flex items-center gap-3 px-4 py-3 bg-soft-white border-b border-warm-gray/20">
-          {/* 桌面端面板切换：衣橱 / 搭搭，同一时间只开一个 */}
-          <button
-            onClick={() => setDesktopPanel(prev => prev === "wardrobe" ? null : "wardrobe")}
-            className={`hidden md:flex text-base transition-transform hover:scale-110 ${
-              desktopPanel === "wardrobe" ? "scale-110" : ""
-            }`}
-            title="衣橱"
-          >
-            {userGender === "male" ? "👔" : "👗"}
-          </button>
-          <button
-            onClick={() => setDesktopPanel(prev => prev === "chat" ? null : "chat")}
-            className={`hidden md:flex text-base transition-transform hover:scale-110 ${
-              desktopPanel === "chat" ? "scale-110" : ""
-            }`}
-            title="搭搭"
-          >
-            🦊
-          </button>
-          <button
-            onClick={() => router.push('/scenes')}
-            className="text-sm text-warm-gray hover:text-rose transition-colors"
-          >
-            ← 返回
-          </button>
-          <div className="flex-1 text-center">
+        <header className="flex flex-col bg-soft-white border-b border-warm-gray/20">
+          {/* 第一行：场景名居中，🔊 紧邻其右，返回靠最右 */}
+          <div className="relative flex items-center justify-center gap-2 px-4 pt-2.5 pb-1">
             <h2 className="text-sm font-medium text-charcoal">
               {scene?.name || "自由搭配"}
             </h2>
+            <AmbientSound name={scene?.name || ""} moodTags={scene?.mood_tags || []} ambientSoundUrl={scene?.ambient_sound_url || null} />
+            <button
+              onClick={() => router.push('/scenes')}
+              className="absolute right-4 text-sm text-warm-gray hover:text-rose transition-colors"
+            >
+              ← 返回
+            </button>
           </div>
-          <AmbientSound name={scene?.name || ""} moodTags={scene?.mood_tags || []} ambientSoundUrl={scene?.ambient_sound_url || null} />
-          <div className="flex items-center gap-2">
+
+          {/* 第二行：左 衣橱/搭搭，右 保存/下载 */}
+          <div className="flex items-center justify-between px-4 pb-2.5">
+            <div className="flex items-center gap-3">
+              {/* 桌面端面板切换：衣橱 / 搭搭，同一时间只开一个 */}
+              <button
+                onClick={() => setDesktopPanel(prev => prev === "wardrobe" ? null : "wardrobe")}
+                className={`hidden md:flex text-base transition-transform hover:scale-110 ${
+                  desktopPanel === "wardrobe" ? "scale-110" : ""
+                }`}
+                title="衣橱"
+              >
+                {userGender === "male" ? "👔" : "👗"}
+              </button>
+              <button
+                onClick={() => setDesktopPanel(prev => prev === "chat" ? null : "chat")}
+                className={`hidden md:flex text-base transition-transform hover:scale-110 ${
+                  desktopPanel === "chat" ? "scale-110" : ""
+                }`}
+                title="搭搭"
+              >
+                🦊
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
             {/* 保存当前搭配 */}
             <button
               onClick={() => {
@@ -555,7 +561,7 @@ function DressingContent() {
             >
               💾 保存
             </button>
-            {/* 历史 */}
+            {/* 下载（生成记录 + 保存方案） */}
             <div className="relative">
               <button
                 onClick={() => setShowHistory(!showHistory)}
@@ -563,7 +569,7 @@ function DressingContent() {
                   showHistory ? "border-rose/40 text-rose" : "border-warm-gray/30 text-warm-gray"
                 }`}
               >
-                📋 记录 ({sceneGenerationHistory.length + sceneSavedOutfits.length})
+                ⏬ 下载 ({sceneGenerationHistory.length + sceneSavedOutfits.length})
               </button>
               {showHistory && (
                 <>
@@ -618,6 +624,7 @@ function DressingContent() {
                 </>
               )}
             </div>
+          </div>
           </div>
         </header>
 

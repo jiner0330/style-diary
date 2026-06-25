@@ -233,6 +233,7 @@ export default function AmbientSound({ name, moodTags, ambientSoundUrl }: Props)
   return (
     <button
       onClick={toggle}
+      title={active ? "关闭环境音" : "开启环境音"}
       className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium
                  backdrop-blur-sm transition-all active:scale-95
                  ${active
@@ -241,7 +242,6 @@ export default function AmbientSound({ name, moodTags, ambientSoundUrl }: Props)
                  }`}
     >
       <span>{active ? "🔊" : "🔈"}</span>
-      <span>{active ? "关闭" : "环境音"}</span>
     </button>
   )
 }
