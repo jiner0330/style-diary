@@ -774,7 +774,7 @@ function DressingContent() {
             <ChatPanel
               currentOutfit={outfit}
               onClose={() => setDesktopPanel(null)}
-              onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
+              onGenerateOutfit={() => { setDesktopPanel(null); generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
               onWearSet={(items) => { wearingAISetRef.current = true; wearSet(items) }}
               userCoords={userCoords}
               gender={userGender}
@@ -899,7 +899,7 @@ function DressingContent() {
             <ChatPanel
               currentOutfit={outfit}
               onClose={() => setMobileTab(null)}
-              onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
+              onGenerateOutfit={() => { setMobileTab(null); generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
               onWearSet={(items) => {
                 wearingAISetRef.current = true
                 wearSet(items)
