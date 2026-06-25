@@ -18,6 +18,8 @@ const FIGURE_OFFSET_Y = -3
 const FIGURE_FEET_FRAC = 0.9
 // 移动端人台整体放大系数：移动端画面里人台偏小，单独放大；桌面端仍用 FIGURE_SCALE
 const FIGURE_MOBILE_BOOST = 1.2
+// 桌面端把角度指示器/标签整体再上移的量（容器纵向占比）；仅桌面端，移动端不动；人台与锚点不受影响
+const DESKTOP_CHROME_LIFT = 0.03
 
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
@@ -190,6 +192,8 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
   }
   // 脚部变换后落点（容器纵向占比），角度指示器/标签据此贴在脚下方一并随人台移动
   const feetY = figureScale * FIGURE_FEET_FRAC + FIGURE_OFFSET_Y / 100
+  // 桌面端把指示器/标签整体再上移（人台与锚点不动）；移动端保持原位
+  const chromeLift = isMobile ? 0 : DESKTOP_CHROME_LIFT
 
   return (
     <div className="flex flex-col items-center w-full py-4 md:py-6 md:pb-6">
@@ -271,7 +275,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
 
         {/* 角度指示器（贴在脚下方，随人台缩放/位移同步） */}
         <div className="absolute left-1/2 -translate-x-1/2 z-10 flex gap-1"
-             style={{ top: `${(feetY + 0.06) * 100}%` }}>
+             style={{ top: `${(feetY + 0.06 - chromeLift) * 100}%` }}>
           {ROTATION_ANGLES.map((_, i) => (
             <span
               key={i}
@@ -283,7 +287,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
 
         {/* 角度标签（贴在脚下方、指示器上方，随人台缩放/位移同步） */}
         <div className="absolute left-1/2 -translate-x-1/2 z-10 flex gap-12"
-             style={{ top: `${(feetY + 0.035) * 100}%` }}>
+             style={{ top: `${(feetY + 0.035 - chromeLift) * 100}%` }}>
           {ANGLE_LABELS.map((label, i) => (
             <span
               key={i}
