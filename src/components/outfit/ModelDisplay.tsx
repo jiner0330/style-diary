@@ -197,7 +197,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
 
   return (
     <div className="flex flex-col items-center w-full py-4 md:py-6 md:pb-6">
-      <p className="text-[11px] text-warm-gray/60 mb-3 tracking-wide">
+      <p className="text-[11px] text-charcoal/70 font-medium mb-3 tracking-wide">
         {filledCount > 0
           ? `已搭配 ${filledCount} 件 ✦ 左右滑动旋转 · 继续拖拽或点击下方卡片替换`
           : `拖拽单品到人台 ✦ 在人台上左右滑动可旋转`}
@@ -254,13 +254,13 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
               className={`rounded-full transition-[width,height,box-shadow,opacity] duration-300
                 ${m.filled
                   ? "w-3 h-3 shadow-[0_0_10px_rgba(0,0,0,0.25)]"
-                  : "w-2 h-2 animate-pulse opacity-40 shadow-none"
+                  : "w-2 h-2 animate-pulse opacity-70 shadow-none"
                 }`}
-              style={{ backgroundColor: m.filled ? m.color : "#B0A8A0" }}
+              style={{ backgroundColor: m.filled ? m.color : "#8F857B" }}
             />
             {m.label && (
               <span className={`text-[9px] mt-0.5 font-medium transition-colors duration-300
-                ${m.filled ? "text-charcoal/80" : "text-warm-gray/40"}`}>
+                ${m.filled ? "text-charcoal/80" : "text-warm-gray/65"}`}>
                 {m.label}
               </span>
             )}
