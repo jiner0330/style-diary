@@ -28,10 +28,12 @@ button, a, [role="button"], summary {
   touch-action: manipulation;
 }
 
-/* 人台呼吸动画 */
+/* 人台呼吸动画：轻微起伏 + 摇摆，让静态人台有呼吸感 */
 @keyframes breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.006); }
+  0%, 100% { transform: translateY(0)    scale(1)     rotate(0deg);    }
+  25%      { transform: translateY(-2px) scale(1.006) rotate(0.45deg); }
+  50%      { transform: translateY(-3px) scale(1.01)  rotate(0deg);    }
+  75%      { transform: translateY(-2px) scale(1.006) rotate(-0.45deg);}
 }
 
 /* 单品掉落闪亮 */
@@ -60,7 +62,7 @@ button, a, [role="button"], summary {
   50% { opacity: 0.85; }
 }
 
-.animate-breathe { animation: breathe 6s ease-in-out infinite; }
+.animate-breathe { animation: breathe 6s ease-in-out infinite; transform-origin: 50% 92%; will-change: transform; }
 .animate-glow-pulse { animation: glow-pulse 0.7s ease-out; }
 .animate-sparkle-float { animation: sparkle-float 1.5s ease-out forwards; }
 .animate-fade-in-up { animation: fadeInUp 0.4s ease-out; }
@@ -92,6 +94,10 @@ button, a, [role="button"], summary {
 .animate-celebration-bounce { animation: celebrationBounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 .animate-celebration-text { animation: celebrationText 1.2s ease-out forwards; }
 .animate-fox-tilt { animation: foxTilt 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-breathe { animation: none; }
+}
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar {

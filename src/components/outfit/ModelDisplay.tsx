@@ -201,7 +201,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
           <img
             src={mannequinSrc}
             alt={`人台 ${ROTATION_ANGLES[angleIndex]}°`}
-            className="w-full h-full object-contain select-none pointer-events-none transition-opacity duration-150"
+            className="w-full h-full object-contain select-none pointer-events-none transition-opacity duration-150 animate-breathe"
             draggable={false}
             style={{
               opacity: !imagesLoaded.has(ROTATION_ANGLES[angleIndex]) ? 0.6 : 1,
