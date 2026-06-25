@@ -68,10 +68,13 @@ button, a, [role="button"], summary {
 .animate-fade-in-up { animation: fadeInUp 0.4s ease-out; }
 .animate-text-breathe { animation: text-breathe 3s ease-in-out infinite; }
 
-/* 场景粒子：樱花缓慢飘落（周末 brunch）
-   下落 / 摇摆 / 自转分三层嵌套，避免多个 transform 互相覆盖；
-   下落用 cqh（容器高度单位）保证跨整列、且全程走 GPU 合成 */
-.sakura-layer { container-type: size; }
+/* 场景粒子系统：通用三层嵌套（p-fall 位移 / p-sway 摇摆 / p-glyph 自转·呼吸·闪烁），
+   每种特效 .fx-* 给各层指定不同 keyframes；竖向位移用 cqh 跨整列、全程走 GPU 合成 */
+.particle-layer { container-type: size; }
+.p-fall { position: absolute; top: 0; will-change: transform; }
+.p-sway, .p-glyph { display: block; width: 100%; height: 100%; }
+
+/* 樱花飘落（周末 brunch）：落 + 摇 + 转 */
 @keyframes sakura-fall {
   0%   { transform: translateY(-12cqh); }
   100% { transform: translateY(112cqh); }
@@ -84,26 +87,52 @@ button, a, [role="button"], summary {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
-.sakura-petal {
-  position: absolute;
-  top: 0;
-  animation: sakura-fall var(--fall-dur, 13s) linear var(--fall-delay, 0s) infinite;
-  will-change: transform;
+.fx-sakura .p-fall  { animation: sakura-fall var(--fall-dur, 13s) linear var(--fall-delay, 0s) infinite; }
+.fx-sakura .p-sway  { animation: sakura-sway var(--sway-dur, 3s) ease-in-out infinite; }
+.fx-sakura .p-glyph { animation: sakura-spin var(--glyph-dur, 7s) linear infinite; }
+
+/* 阳光波光（三天海边旅行）：散布原地闪烁 + 轻微漂移 */
+@keyframes glint-drift {
+  0%   { transform: translate(0, 0); }
+  50%  { transform: translate(var(--drift, 14px), 7px); }
+  100% { transform: translate(0, 0); }
 }
-.sakura-petal > .sakura-sway {
-  display: block;
-  width: 100%;
-  height: 100%;
-  animation: sakura-sway var(--sway-dur, 3s) ease-in-out infinite;
+@keyframes glint-twinkle {
+  0%, 100% { opacity: 0.12; transform: scale(0.65); }
+  50%      { opacity: 1;    transform: scale(1.1); }
 }
-.sakura-petal > .sakura-sway > svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  animation: sakura-spin var(--spin-dur, 7s) linear infinite;
+.fx-glint .p-fall  { animation: glint-drift   var(--fall-dur, 14s)  ease-in-out var(--fall-delay, 0s) infinite; }
+.fx-glint .p-glyph { animation: glint-twinkle var(--glyph-dur, 2.6s) ease-in-out var(--fall-delay, 0s) infinite; }
+
+/* 暖色柔光 bokeh（第一次约会）：缓慢上浮 + 摇摆 + 缩放呼吸 */
+@keyframes bokeh-rise {
+  0%   { transform: translateY(112cqh); }
+  100% { transform: translateY(-16cqh); }
 }
+@keyframes bokeh-breathe {
+  0%, 100% { transform: scale(0.85); }
+  50%      { transform: scale(1.18); }
+}
+.fx-bokeh .p-fall  { animation: bokeh-rise    var(--fall-dur, 20s) linear     var(--fall-delay, 0s) infinite; }
+.fx-bokeh .p-sway  { animation: sakura-sway   var(--sway-dur, 6s)  ease-in-out infinite; }
+.fx-bokeh .p-glyph { animation: bokeh-breathe var(--glyph-dur, 7s) ease-in-out infinite; }
+
+/* 窗光浮尘（书店咖啡馆独处）：低重力慢飘 + 透明度微闪 */
+@keyframes mote-drift {
+  0%   { transform: translate(0, 0); }
+  33%  { transform: translate(var(--drift, 16px), -10px); }
+  66%  { transform: translate(calc(var(--drift, 16px) * -0.6), 8px); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes mote-twinkle {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+.fx-mote .p-fall  { animation: mote-drift   var(--fall-dur, 20s) ease-in-out var(--fall-delay, 0s) infinite; }
+.fx-mote .p-glyph { animation: mote-twinkle var(--glyph-dur, 4s) ease-in-out var(--fall-delay, 0s) infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .sakura-layer { display: none; }
+  .particle-layer { display: none; }
 }
 
 /* 评分庆祝动画 */
