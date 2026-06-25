@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from "react"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
 
+// 人台图资源版本号：换图/重抠时手动 +1 强制刷新缓存；平时固定，刷新走浏览器缓存（不再每刷必重下）
+const MANNEQUIN_VER = "4"
+
 const ROTATION_ANGLES = ["000", "180"] as const
 const TOTAL_FRAMES = ROTATION_ANGLES.length
 const ANGLE_LABELS = ["正面", "背面"]
@@ -46,7 +49,6 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
   const filledCount = (["dress","top","bottom","outerwear","shoes","bag"] as const)
     .filter((s) => !!outfit[s]).length + outfit.accessories.length
 
-  const cacheVer = useRef(Date.now())
   const [internalIndex, setInternalIndex] = useState(0)
   const angleIndex = controlledIndex ?? internalIndex
   const setAngleIndex = (i: number) => {
@@ -71,7 +73,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
   useEffect(() => {
     ROTATION_ANGLES.forEach((angle) => {
       const img = new Image()
-      img.src = `/${mannequinPrefix}-${angle}.png?v=${cacheVer.current}`
+      img.src = `/${mannequinPrefix}-${angle}.png?v=${MANNEQUIN_VER}`
       img.onload = () => setImagesLoaded((prev) => new Set(prev).add(angle))
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,7 +148,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     try { containerRef.current?.releasePointerCapture(e.pointerId) } catch {}
   }
 
-  const mannequinSrc = `/${mannequinPrefix}-${ROTATION_ANGLES[angleIndex]}.png?v=${cacheVer.current}`
+  const mannequinSrc = `/${mannequinPrefix}-${ROTATION_ANGLES[angleIndex]}.png?v=${MANNEQUIN_VER}`
 
   // 标记点（男生不显示连衣裙锚点）
   const markerEntries = Object.entries(SLOT_MARKERS)
@@ -217,7 +219,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         {ROTATION_ANGLES.map((angle) => (
           <img
             key={`preload-${angle}`}
-            src={`/${mannequinPrefix}-${angle}.png?v=${cacheVer.current}`}
+            src={`/${mannequinPrefix}-${angle}.png?v=${MANNEQUIN_VER}`}
             alt=""
             className="hidden"
             draggable={false}
