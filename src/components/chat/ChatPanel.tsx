@@ -6,7 +6,6 @@ import { getAuthToken, supabase } from "@/lib/supabase"
 import { stripJSONFromText } from "@/lib/strip-json"
 import { useOutfitStore } from "@/store/outfit"
 import type { OutfitState, AIOutfitPlan, AIOutfitItem, ClothingItem } from "@/types"
-import toast from "react-hot-toast"
 
 export interface ChatMessage {
   role: "user" | "assistant"
@@ -328,7 +327,6 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
 
     addAIItems(clothingItems)
     onWearSet(wearItems)
-    toast.success("已穿上这套搭配")
   }
 
   function handleGenerateAI(items: AIOutfitItem[]) {
