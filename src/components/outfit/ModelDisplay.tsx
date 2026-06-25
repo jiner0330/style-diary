@@ -10,9 +10,6 @@ const ANGLE_LABELS = ["正面", "背面"]
 const SWIPE_THRESHOLD = 30
 const MAX_VISUAL_SHIFT = 120
 
-// 把矩形白底人台羽化成柔和的纵向椭圆，溶进近白场景背景，去掉生硬的方框感
-const MANNEQUIN_MASK = "radial-gradient(ellipse 66% 88% at 50% 50%, #000 55%, transparent 96%)"
-
 const SLOT_MARKERS: Record<string, { top: string; left: string; label: string }> = {
   accessories:{ top: "10%", left: "50%", label: "饰" },
   outerwear:  { top: "32%", left: "50%", label: "外" },
@@ -208,8 +205,6 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
             draggable={false}
             style={{
               opacity: !imagesLoaded.has(ROTATION_ANGLES[angleIndex]) ? 0.6 : 1,
-              WebkitMaskImage: MANNEQUIN_MASK,
-              maskImage: MANNEQUIN_MASK,
             }}
           />
         </div>
