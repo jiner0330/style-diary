@@ -522,12 +522,12 @@ function DressingContent() {
           </button>
           <button
             onClick={() => setDesktopPanel(prev => prev === "chat" ? null : "chat")}
-            className={`hidden md:flex text-sm transition-colors ${
-              desktopPanel === "chat" ? "text-charcoal" : "text-warm-gray hover:text-charcoal"
+            className={`hidden md:flex text-base transition-transform hover:scale-110 ${
+              desktopPanel === "chat" ? "scale-110" : ""
             }`}
             title="搭搭"
           >
-            💬
+            🦊
           </button>
           <button
             onClick={() => router.push('/scenes')}
@@ -764,33 +764,21 @@ function DressingContent() {
             </div>
           </div>
 
-          {/* 右：搭搭聊天 — 桌面端侧边面板，常驻挂载不丢对话，与衣橱互斥 */}
+          {/* 右：搭搭聊天 — 桌面端全屏浮层，常驻挂载不丢对话，与衣橱互斥 */}
           <div className={desktopPanel === "chat"
-            ? "hidden md:flex md:w-[38%] lg:w-[35%] h-full flex-col overflow-hidden border-l border-warm-gray/20"
+            ? "hidden md:flex fixed inset-0 z-[80] bg-soft-white flex-col"
             : "hidden"
           }>
-            <div className="flex items-center justify-between px-3 py-2 border-b border-warm-gray/10">
-              <span className="text-sm font-medium text-charcoal">搭搭</span>
-              <button
-                onClick={() => setDesktopPanel(null)}
-                className="w-6 h-6 rounded-full bg-charcoal/5 text-charcoal/50 text-xs
-                           flex items-center justify-center hover:bg-charcoal/10 transition-colors"
-                title="收起聊天"
-              >
-                ▶
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <ChatPanel
-                currentOutfit={outfit}
-                onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
-                onWearSet={(items) => { wearingAISetRef.current = true; wearSet(items) }}
-                userCoords={userCoords}
-                gender={userGender}
-                bodyType={userBodyType}
-                styleTags={userStyleTags}
-              />
-            </div>
+            <ChatPanel
+              currentOutfit={outfit}
+              onClose={() => setDesktopPanel(null)}
+              onGenerateOutfit={() => { generatedByAI.current = true; generateForAngle(angleIndex, { skipReview: true }) }}
+              onWearSet={(items) => { wearingAISetRef.current = true; wearSet(items) }}
+              userCoords={userCoords}
+              gender={userGender}
+              bodyType={userBodyType}
+              styleTags={userStyleTags}
+            />
           </div>
         </div>
 
@@ -949,7 +937,7 @@ function DressingContent() {
               : "bg-cream text-charcoal"
           }`}
         >
-          ✨ 搭搭
+          🦊 搭搭
         </button>
       </div>
     </div>
