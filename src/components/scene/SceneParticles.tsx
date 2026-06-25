@@ -100,14 +100,15 @@ const EFFECTS: Record<ParticleType, EffectCfg> = {
     shape: "circle",
     scatter: true,
     blur: 0.8,
-    colors: ["#f3e6cf", "#efe1c6", "#f7eede"],
+    glow: true, // 浮尘被窗光照亮：柔光是可见性关键，缺它会融进暖色书店底图
+    colors: ["#fffaf0", "#fff0d4", "#ffffff"],
     swayMin: 0,
     swayMax: 0,
     glyphMin: 3,
     glyphMax: 5.5,
     driftMin: 10,
     driftMax: 26,
-    layers: [{ z: "z-[5]", count: 14, sizeMin: 2, sizeMax: 4.5, opMin: 0.25, opMax: 0.6, durMin: 16, durMax: 26 }],
+    layers: [{ z: "z-[5]", count: 18, sizeMin: 2.5, sizeMax: 6, opMin: 0.4, opMax: 0.85, durMin: 16, durMax: 26 }],
   },
 }
 
