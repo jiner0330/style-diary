@@ -163,6 +163,19 @@ function DressingContent() {
     console.log("[dressing] React hydrated successfully")
   }, [])
 
+  // 首次进入：桌面端一次性新手引导气泡（记住后不再显示）
+  const [showGuide, setShowGuide] = useState(false)
+  useEffect(() => {
+    if (profileLoading) return
+    try {
+      if (!localStorage.getItem("sd-dressing-guide-seen")) setShowGuide(true)
+    } catch {}
+  }, [profileLoading])
+  function dismissGuide() {
+    setShowGuide(false)
+    try { localStorage.setItem("sd-dressing-guide-seen", "1") } catch {}
+  }
+
   // 获取浏览器定位
   useEffect(() => {
     if (!navigator.geolocation) return
@@ -511,7 +524,7 @@ function DressingContent() {
     <DndContext onDragEnd={handleDragEnd}>
       <div className="flex flex-col flex-1 h-[100dvh]">
         {/* 顶部操作栏 */}
-        <header className="flex flex-col bg-soft-white border-b border-warm-gray/20">
+        <header className="relative flex flex-col bg-soft-white border-b border-warm-gray/20">
           {/* 第一行：场景名居中，🔊 紧邻其右，返回靠最右 */}
           <div className="relative flex items-center justify-center gap-2 px-4 pt-2.5 pb-1">
             <h2 className="text-xl font-semibold bg-[linear-gradient(90deg,#A6B27E,#788A50)] bg-clip-text text-transparent">
@@ -531,7 +544,7 @@ function DressingContent() {
             <div className="flex items-center gap-3">
               {/* 桌面端面板切换：衣橱 / 搭搭，同一时间只开一个 */}
               <button
-                onClick={() => setDesktopPanel(prev => prev === "wardrobe" ? null : "wardrobe")}
+                onClick={() => { dismissGuide(); setDesktopPanel(prev => prev === "wardrobe" ? null : "wardrobe") }}
                 className={`hidden md:flex text-base transition-transform hover:scale-110 ${
                   desktopPanel === "wardrobe" ? "scale-110" : ""
                 }`}
@@ -540,7 +553,7 @@ function DressingContent() {
                 {userGender === "male" ? "👔" : "👗"}
               </button>
               <button
-                onClick={() => setDesktopPanel(prev => prev === "chat" ? null : "chat")}
+                onClick={() => { dismissGuide(); setDesktopPanel(prev => prev === "chat" ? null : "chat") }}
                 className={`hidden md:flex text-base transition-transform hover:scale-110 ${
                   desktopPanel === "chat" ? "scale-110" : ""
                 }`}
@@ -626,6 +639,28 @@ function DressingContent() {
             </div>
           </div>
           </div>
+
+          {/* 首次进入新手引导气泡（桌面端一次性） */}
+          {showGuide && (
+            <div className="hidden md:block absolute left-3 top-full mt-1.5 z-[60]">
+              <div className="ml-3 w-3 h-3 bg-charcoal rotate-45 -mb-1.5" />
+              <div className="relative bg-charcoal text-soft-white rounded-2xl shadow-xl px-4 py-3 w-[264px]">
+                <p className="text-xs font-medium mb-2">👋 欢迎来到搭配间</p>
+                <p className="text-[11px] leading-relaxed mb-1.5">
+                  <span className="font-medium">👗 衣橱</span> — 浏览、挑选你的衣服
+                </p>
+                <p className="text-[11px] leading-relaxed mb-3">
+                  <span className="font-medium">🦊 搭搭</span> — 让 AI 帮你一键出搭配方案
+                </p>
+                <button
+                  onClick={dismissGuide}
+                  className="text-[11px] px-3 py-1 rounded-full bg-soft-white/20 hover:bg-soft-white/30 transition-colors"
+                >
+                  知道了
+                </button>
+              </div>
+            </div>
+          )}
         </header>
 
         {/* 主体三区布局 */}
