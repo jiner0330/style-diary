@@ -106,3 +106,15 @@ export function pickRemark(sceneName: string | null | undefined, weather?: Remar
   const tip = pick(tips[cat] ?? tips.base)
   return `${LEAD[cat](weather)}，${tip}`
 }
+
+// 进场问候图标随今天真实天气变（避免和顶部 🦊 搭搭 logo 重复）；无天气降级 ✨
+export function weatherGlyph(weather?: RemarkWeather | null): string {
+  if (!weather) return "✨"
+  const c = weather.condition
+  if (/雨/.test(c)) return "🌧️"
+  if (/雪/.test(c)) return "❄️"
+  if (/雾|霾|沙|尘/.test(c)) return "🌫️"
+  if (/晴/.test(c)) return "☀️"
+  if (/多云|阴|少云/.test(c)) return "⛅"
+  return "✨"
+}
