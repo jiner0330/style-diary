@@ -17,6 +17,8 @@ import GenerationBar from "@/components/outfit/GenerationBar"
 import ChatPanel from "@/components/chat/ChatPanel"
 import AmbientSound from "@/components/scene/AmbientSound"
 import SceneParticles from "@/components/scene/SceneParticles"
+import StylistRemark from "@/components/scene/StylistRemark"
+import { type RemarkWeather } from "@/lib/stylist-remark"
 import type { Scene, ClothingItem, AIOutfitItem } from "@/types"
 import toast from "react-hot-toast"
 
@@ -177,6 +179,9 @@ function DressingContent() {
     try { localStorage.setItem("sd-dressing-guide-seen", "1") } catch {}
   }
 
+  // 造型师问候用的实时天气（客户端预取，沿用 ChatPanel 模式减少 Vercel HK 跨境调用）
+  const [weather, setWeather] = useState<RemarkWeather | null>(null)
+
   // 获取浏览器定位
   useEffect(() => {
     if (!navigator.geolocation) return
@@ -186,6 +191,23 @@ function DressingContent() {
       { timeout: 5000, maximumAge: 30 * 60 * 1000 },
     )
   }, [])
+
+  // 定位就绪 → 客户端拉天气，供造型师进场问候引用今天真实天气
+  useEffect(() => {
+    if (!userCoords) return
+    let cancelled = false
+    fetch(`/api/weather?lat=${userCoords.lat}&lon=${userCoords.lon}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d?.current) return
+        const temp = parseFloat(d.current.temp)
+        if (!Number.isNaN(temp)) setWeather({ temp, condition: d.current.text || "" })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [userCoords])
 
   // 加载场景 + 用户画像
   useEffect(() => {
@@ -702,6 +724,7 @@ function DressingContent() {
               </div>
             )}
             <SceneParticles name={scene?.name} />
+            <StylistRemark sceneName={scene?.name} weather={weather} />
             <div className="relative z-10 flex flex-col items-center w-full">
             {profileLoading ? (
               <div className="flex items-center justify-center w-full" style={{ aspectRatio: "4/7", maxWidth: "220px" }}>
