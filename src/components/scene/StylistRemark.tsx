@@ -59,7 +59,7 @@ export default function StylistRemark({ sceneName, weather }: Props) {
     return (
       <div className="relative z-20 w-full px-3 pt-2 animate-fade-in-up">
         <div className="flex items-start gap-2 bg-charcoal text-soft-white rounded-2xl shadow-lg px-3 py-2">
-          <span className="shrink-0 text-xl leading-none animate-fox-tilt drop-shadow-[0_2px_4px_rgba(60,50,45,0.3)]">
+          <span className="shrink-0 text-base leading-none animate-fox-tilt drop-shadow-[0_2px_4px_rgba(60,50,45,0.3)]">
             {glyph}
           </span>
           <span className="text-[11px] leading-snug">
@@ -79,7 +79,7 @@ export default function StylistRemark({ sceneName, weather }: Props) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label="今日造型提示"
-        className="pointer-events-auto shrink-0 text-3xl leading-none animate-fox-tilt
+        className="pointer-events-auto shrink-0 text-2xl leading-none animate-fox-tilt
                    drop-shadow-[0_2px_4px_rgba(60,50,45,0.3)] active:scale-95 transition-transform"
       >
         {glyph}
