@@ -210,7 +210,7 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className={`relative w-full max-w-[220px] md:max-w-[420px] rounded-3xl
+        className={`relative w-full max-w-[264px] md:max-w-[420px] rounded-3xl
           overflow-hidden select-none
           ${isDragging ? "cursor-grabbing" : "cursor-ew-resize"}`}
         style={{ aspectRatio: "4/7", touchAction: "none" }}
