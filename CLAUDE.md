@@ -188,9 +188,9 @@ Vercel hkg1（香港）节点无法稳定访问中国大陆服务，必须将国
 
 ```
 浏览器（国内）
+  ├─ ESA 边缘加速（dada-ai.cn / www）→ origin → Vercel HK → DeepSeek / ofox.ai（境外）
   ├─ 阿里云 FC 上海 → 阿里云 SMS + Supabase 上海（同城）
-  ├─ supabase-js 客户端直连 → Supabase 上海
-  └─ Vercel HK → DeepSeek / ofox.ai（境外）
+  └─ supabase-js 客户端直连 → Supabase 上海
 ```
 
 ### 短信认证踩坑记录（2026-06-24）
@@ -215,12 +215,29 @@ const { SendSmsVerifyCodeRequest, CheckSmsVerifyCodeRequest } = require("@aliclo
 - 函数代码需显式 `http.createServer` + `server.listen(FC_SERVER_PORT || 9000)` 常驻进程
 - 在线编辑器部署不自动 `npm install`，需上传含 node_modules 的 zip 包
 
-### 仍有风险的调用
+### 已验证的调用
 
 | 调用 | 路径 | 状态 |
 |------|------|:--:|
-| `/api/chat` → `supabase.auth.getUser()` | Vercel HK → Supabase 上海 | ⚠️ 未验证 |
-| `/api/weather` → 和风天气 | Vercel HK → 和风天气 | ⚠️ 需验证 |
+| `/api/chat` → `supabase.auth.getUser()` | Vercel HK → Supabase 上海 | ✅ 已验证 (2026-06-29) |
+| `/api/weather` → 和风天气 | Vercel HK → 和风天气 | ✅ 已验证 (2026-06-29) |
+
+### ESA 生产架构（2026-06-29 上线）
+
+ESA（阿里云边缘安全加速）已部署在 Vercel 前方，承接 `dada-ai.cn` / `www.dada-ai.cn`：
+
+```
+用户（国内）→ ESA（全球边缘）→ origin.dada-ai.cn（CNAME→Vercel HK）
+```
+
+关键配置（均在阿里云 ESA 控制台管理，非代码层面）：
+- 缓存：`/_next/static/*` 和静态资源后缀缓存 7d，`/api/*` 绕开缓存
+- 回源超时：≥60s（生图同步调用需要 55s 预算）
+- 重定向：`www→apex` 301（ESA 规则引擎，保留 query string）
+- 证书：Let's Encrypt 免费证书，DNS 验证，ESA 自动续签
+- `/api/chat` SSE 流式：bypass cache 后正常透传，无需特殊处理
+
+**排障提示**：用户反馈页面问题时，先确认是 ESA 缓存还是 Vercel 源站问题——用 `origin.dada-ai.cn` 直连源站对比测试。
 
 ### fc-functions 目录
 
