@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import confetti from "canvas-confetti"
+import SharePanel from "./SharePanel"
 
 const ANGLES = ["000", "180"]
 const ANGLE_LABELS = ["正面", "背面"]
@@ -78,6 +79,7 @@ export default function ResultModal({
   const rafRef = useRef(0)
   const lastGenFingerprint = useRef("")
   const [feedback, setFeedback] = useState<"liked" | "disliked" | null>(null)
+  const [showShare, setShowShare] = useState(false)
 
   // Map API angleIndex → image; resultImages is keyed by API angleIndex (0 or 2)
   const apiAngle = toApiAngle(resultAngle)
@@ -520,6 +522,13 @@ export default function ResultModal({
               {/* 操作按钮 */}
               <div className="flex gap-2 mt-4">
                 <button
+                  onClick={() => setShowShare(true)}
+                  className="flex-1 py-2.5 rounded-xl bg-rose text-soft-white text-sm font-medium
+                             active:scale-[0.98] transition-all"
+                >
+                  📤 分享
+                </button>
+                <button
                   onClick={onClose}
                   className="flex-1 py-2.5 rounded-xl border border-warm-gray/30 text-charcoal text-sm
                              hover:bg-soft-white transition-colors active:scale-[0.98]"
@@ -589,6 +598,9 @@ export default function ResultModal({
             </a>
           )}
         </div>
+        {currentImage && showShare && (
+          <SharePanel imageUrl={currentImage.url} onClose={() => setShowShare(false)} />
+        )}
       </div>
     </div>
   )
