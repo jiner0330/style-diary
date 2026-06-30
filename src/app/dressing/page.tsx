@@ -711,7 +711,7 @@ function DressingContent() {
           )}
 
           {/* 中：模特展示区 */}
-          <div className="flex-1 flex flex-col items-center overflow-y-auto relative">
+          <div className="flex-1 flex flex-col items-center overflow-y-auto relative pb-24">
             {/* 场景背景 */}
             {scene?.illustration_url && (
               <div className="absolute inset-0 pointer-events-none">
