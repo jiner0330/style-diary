@@ -236,8 +236,9 @@ ESA（阿里云边缘安全加速）已部署在 Vercel 前方，承接 `dada-ai
 - 重定向：`www→apex` 301（ESA 规则引擎，保留 query string）
 - 证书：Let's Encrypt 免费证书，DNS 验证，ESA 自动续签
 - `/api/chat` SSE 流式：bypass cache 后正常透传，无需特殊处理
+- **HTTP/2 回源必须关闭**：ESA 启 HTTP/2 回源 → Vercel 时，ESA 维护多条 HTTP/2 长连接，其中某条 TLS 会话间歇性损坏，导致浏览器交替出现"页面无法打开"（无 HTTP 响应）。关闭后走 HTTP/1.1 回源，每次新建连接，问题消失。排查耗时最长（2026-06-30），不要重开。
 
-**排障提示**：用户反馈页面问题时，先确认是 ESA 缓存还是 Vercel 源站问题——用 `origin.dada-ai.cn` 直连源站对比测试。
+**排障提示**：用户反馈页面问题时，先确认是 ESA 缓存还是 Vercel 源站问题——用 `origin.dada-ai.cn` 直连源站对比测试。浏览器 Network 里 Status 为空（无 HTTP 响应）= 连接层面问题，先查 ESA HTTP/2 回源是否被误开启。
 
 ### fc-functions 目录
 
