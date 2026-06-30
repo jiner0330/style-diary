@@ -76,6 +76,8 @@ export default function ResultModal({
   const currentDx = useRef(0)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef(0)
+  const lastGenFingerprint = useRef("")
+  const [feedback, setFeedback] = useState<"liked" | "disliked" | null>(null)
 
   // Map API angleIndex → image; resultImages is keyed by API angleIndex (0 or 2)
   const apiAngle = toApiAngle(resultAngle)
@@ -181,6 +183,16 @@ export default function ResultModal({
   useEffect(() => {
     return () => cancelAnimationFrame(rafRef.current)
   }, [])
+
+  // 新一代生成 → 重置反馈
+  useEffect(() => {
+    const entries = Array.from(resultImages.entries())
+    const fp = entries.map(([k, v]) => `${k}:${v.url}`).sort().join("|")
+    if (fp && fp !== lastGenFingerprint.current) {
+      if (lastGenFingerprint.current) setFeedback(null)
+      lastGenFingerprint.current = fp
+    }
+  }, [resultImages])
 
   function handlePointerDown(e: React.PointerEvent) {
     e.preventDefault()
@@ -337,6 +349,36 @@ export default function ResultModal({
               </div>
             )}
           </div>
+
+          {/* 反馈按钮 */}
+          {currentImage && (
+            <div className="flex items-center justify-center gap-4 mt-4">
+              <button
+                onClick={() => setFeedback(feedback === "liked" ? null : "liked")}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90
+                  ${feedback === "liked"
+                    ? "bg-rose/10 text-rose shadow-sm"
+                    : "bg-warm-gray/5 text-warm-gray/35 hover:text-rose/60 hover:bg-rose/5"}`}
+                title="喜欢这套搭配"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill={feedback === "liked" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setFeedback(feedback === "disliked" ? null : "disliked")}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90
+                  ${feedback === "disliked"
+                    ? "bg-charcoal/10 text-charcoal shadow-sm"
+                    : "bg-warm-gray/5 text-warm-gray/35 hover:text-charcoal/60 hover:bg-charcoal/5"}`}
+                title="不太满意"
+              >
+                <svg className="w-5 h-5 rotate-180" viewBox="0 0 24 24" fill={feedback === "disliked" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                </svg>
+              </button>
+            </div>
+          )}
 
           {/* 角度指示器 */}
           <div className="flex items-center justify-center gap-1.5 mt-4">
