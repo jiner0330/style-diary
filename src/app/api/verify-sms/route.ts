@@ -94,9 +94,22 @@ export async function POST(req: NextRequest) {
     })
 
     if (createErr) {
-      // 用户已存在 → 正常流程
+      // 用户已存在 → 强制更新密码（消除 PHONE_USER_SECRET 变更导致的不匹配）
       if (createErr.message?.includes("already") || createErr.status === 422) {
-        console.log("[verify-sms] user already exists, proceeding")
+        console.log("[verify-sms] user already exists, updating password")
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
+        const existing = users?.find(u => u.email === email)
+        if (existing) {
+          const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(
+            existing.id,
+            { password }
+          )
+          if (updateErr) {
+            console.error("[verify-sms] updateUserById failed:", updateErr.message)
+          } else {
+            console.log("[verify-sms] password updated for existing user")
+          }
+        }
       } else {
         // 其他错误：打印完整信息，但仍返回凭据让前端尝试登录
         // （用户可能在之前某次请求中已创建成功）

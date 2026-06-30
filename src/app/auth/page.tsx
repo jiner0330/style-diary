@@ -90,24 +90,23 @@ function AuthForm() {
       const verifyData = await verifyRes.json()
       if (!verifyRes.ok) { setError(verifyData.error); setPhoneLoading(false); return }
 
-      // 2. 清除残留登录态后，用凭据登录 Supabase
-      await supabase.auth.signOut()
+      // 2. 用凭据登录 Supabase（FC 已确保用户存在且密码正确）
       let { data, error: signInErr } = await supabase.auth.signInWithPassword({
         email: verifyData.email,
         password: verifyData.password,
       })
       if (signInErr) {
-        // 用户不存在 → 客户端注册（Supabase 上海直连，不走 Vercel）
         if (signInErr.message?.includes("Invalid") || signInErr.status === 400) {
-          const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+          // 用户可能不存在 → 客户端注册
+          const signUp = await supabase.auth.signUp({
             email: verifyData.email,
             password: verifyData.password,
             options: { data: { phone: full } },
           })
-          if (signUpErr) {
-            // 用户已存在但 signIn 失败（移动端 cookie/storage 问题常见）
-            // 重试 signIn 而不是直接报错
-            if (signUpErr.message?.includes("already") || signUpErr.status === 422) {
+          if (signUp.error) {
+            if (signUp.error.message?.includes("already") || signUp.error.status === 422) {
+              // 用户存在但 signIn 失败 → 短暂延迟后重试一次
+              await new Promise(r => setTimeout(r, 1500))
               const retry = await supabase.auth.signInWithPassword({
                 email: verifyData.email,
                 password: verifyData.password,
@@ -116,19 +115,15 @@ function AuthForm() {
               if (!retry.data.session) { setError("登录失败，请重试"); setPhoneLoading(false); return }
               data = retry.data
             } else {
-              setError(signUpErr.message); setPhoneLoading(false); return
+              setError(signUp.error.message); setPhoneLoading(false); return
             }
-          }
-          if (signUpData) {
-            if (!signUpData.session) {
-              setError("注册请求已提交，请在 Supabase 关闭邮箱确认后重试"); setPhoneLoading(false); return
-            }
+          } else if (signUp.data.session) {
             toast.success("注册成功 ✨")
             router.push("/onboarding")
             return
+          } else {
+            setError("注册请求已提交，请在 Supabase 关闭邮箱确认后重试"); setPhoneLoading(false); return
           }
-          // signUp 被 "already" 分支处理了，data 已在重试中赋值
-          if (!data.session) { setError("登录失败，请重试"); setPhoneLoading(false); return }
         } else {
           setError(signInErr.message); setPhoneLoading(false); return
         }

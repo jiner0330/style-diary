@@ -98,7 +98,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 500, { error: `验证码校验失败：${checkRes.body?.message}` })
     }
 
-    // 2. 创建 Supabase 用户（阿里云 FC 上海 → Supabase 上海，同城直连）
+    // 2. 创建或更新 Supabase 用户（阿里云 FC 上海 → Supabase 上海，同城直连）
     const supabaseAdmin = getAdminClient()
     const email = phoneToEmail(phone)
     const password = crypto.createHmac("sha256", getPhoneSecret())
@@ -115,7 +115,21 @@ const server = http.createServer(async (req, res) => {
 
     if (createErr) {
       if (createErr.message?.includes("already") || createErr.status === 422) {
-        console.log("[verify-sms] user already exists, proceeding")
+        console.log("[verify-sms] user already exists, updating password")
+        // 强制更新密码：消除 PHONE_USER_SECRET 变更或跨环境不一致导致的密码不匹配
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
+        const existing = users?.find(u => u.email === email)
+        if (existing) {
+          const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(
+            existing.id,
+            { password }
+          )
+          if (updateErr) {
+            console.error("[verify-sms] updateUserById failed:", updateErr.message)
+          } else {
+            console.log("[verify-sms] password updated for existing user")
+          }
+        }
       } else {
         console.error("[verify-sms] createUser failed:", createErr.message)
       }
