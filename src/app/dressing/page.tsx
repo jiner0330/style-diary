@@ -734,11 +734,6 @@ function DressingContent() {
             <ModelDisplay gender={userGender || "female"} angleIndex={angleIndex} onAngleChange={setAngleIndex} />
             )}
 
-            {/* 移动端：搭配清单卡片 */}
-            <div className="md:hidden w-full">
-              <OutfitBar compact onAddClick={handleAddClick} gender={userGender} />
-            </div>
-
             {/* 移动端：空态引导提示 */}
             {!hasAnyItem && (
               <div className="md:hidden text-center py-6 px-4">
@@ -757,7 +752,7 @@ function DressingContent() {
                 className="md:hidden fixed z-30 flex flex-col items-center gap-1 select-none"
                 style={{
                   right: "16px",
-                  bottom: "80px",
+                  bottom: "112px",
                   transform: `translate3d(${btnOffset.tx}px, ${btnOffset.ty}px, 0)`,
                   willChange: "transform",
                   touchAction: "none",
@@ -786,8 +781,8 @@ function DressingContent() {
                   // 边界约束：按钮不超出屏幕
                   const maxTX = 16
                   const minTX = -(window.innerWidth - 72)
-                  const maxTY = 80
-                  const minTY = -(window.innerHeight - 230)
+                  const maxTY = 112
+                  const minTY = -(window.innerHeight - 262)
                   newTX = Math.max(minTX, Math.min(maxTX, newTX))
                   newTY = Math.max(minTY, Math.min(maxTY, newTY))
                   const el = btnRef.current
@@ -907,6 +902,12 @@ function DressingContent() {
       {/* 移动端底部安全区占位 */}
       <div className="lg:hidden h-16" />
     </DndContext>
+
+    {/* 移动端：搭配清单 — 固定在 Tab 栏上方，始终可见 */}
+    <div className="md:hidden fixed inset-x-0 z-30 bg-soft-white/95 backdrop-blur-sm border-t border-warm-gray/15 px-0 py-2"
+         style={{ bottom: "52px" }}>
+      <OutfitBar compact onAddClick={handleAddClick} gender={userGender} />
+    </div>
 
     {/* 移动端：底部双 Tab 面板 */}
     <div className="lg:hidden fixed inset-x-0 bottom-0 z-40">
