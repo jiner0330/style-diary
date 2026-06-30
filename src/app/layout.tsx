@@ -34,6 +34,16 @@ export default function RootLayout({
           <main className="flex-1 flex flex-col max-w-md mx-auto w-full">
             {children}
           </main>
+          <footer className="text-center py-3 px-4">
+            <a
+              href="https://beian.miit.gov.cn"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-warm-gray/40 hover:text-warm-gray/60 transition-colors"
+            >
+              苏ICP备2026042784号
+            </a>
+          </footer>
         </AudioProvider>
         <Toaster
           position="top-center"
