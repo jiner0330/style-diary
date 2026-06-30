@@ -23,9 +23,9 @@ export default function SharePanel({ imageUrl, onClose }: Props) {
     })
 
     const canvas = document.createElement("canvas")
-    const padding = 16
-    const footerH = 72
-    const maxW = 360
+    const padding = 32
+    const footerH = 96
+    const maxW = 1200
 
     const ratio = img.width / img.height
     const drawW = Math.min(img.width, maxW)
@@ -39,7 +39,7 @@ export default function SharePanel({ imageUrl, onClose }: Props) {
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     // 圆角裁剪
-    const rx = 16, ry = 16
+    const rx = 24, ry = 24
     ctx.beginPath()
     ctx.moveTo(padding + rx, padding)
     ctx.lineTo(padding + drawW - rx, padding)
@@ -54,16 +54,58 @@ export default function SharePanel({ imageUrl, onClose }: Props) {
     ctx.clip()
     ctx.drawImage(img, padding, padding, drawW, drawH)
 
-    // 脚标
-    const ctx2 = canvas.getContext("2d")!
-    ctx2.font = "600 16px system-ui, -apple-system, sans-serif"
-    ctx2.fillStyle = "#4A4A4A"
-    ctx2.textAlign = "center"
-    ctx2.fillText("🦊 风格日记 · dada-ai.cn", canvas.width / 2, drawH + padding * 2 + 36)
+    // 斜向水印覆盖图片区域
+    ctx.save()
+    ctx.beginPath()
+    ctx.moveTo(padding + rx, padding)
+    ctx.lineTo(padding + drawW - rx, padding)
+    ctx.quadraticCurveTo(padding + drawW, padding, padding + drawW, padding + rx)
+    ctx.lineTo(padding + drawW, padding + drawH - ry)
+    ctx.quadraticCurveTo(padding + drawW, padding + drawH, padding + drawW - rx, padding + drawH)
+    ctx.lineTo(padding + rx, padding + drawH)
+    ctx.quadraticCurveTo(padding, padding + drawH, padding, padding + drawH - ry)
+    ctx.lineTo(padding, padding + rx)
+    ctx.quadraticCurveTo(padding, padding, padding + rx, padding)
+    ctx.closePath()
+    ctx.clip()
 
-    ctx2.font = "11px system-ui, -apple-system, sans-serif"
-    ctx2.fillStyle = "#999"
-    ctx2.fillText("上传你的衣服，AI 帮你搭配", canvas.width / 2, drawH + padding * 2 + 54)
+    const fontSize = Math.round(Math.min(drawW, drawH) * 0.06)
+    const spacing = fontSize * 5
+    const text = "dada-ai.cn"
+    ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`
+    ctx.fillStyle = "rgba(0,0,0,0.07)"
+    ctx.textAlign = "center"
+
+    const diagonal = drawW + drawH
+    const cols = Math.ceil(diagonal / spacing) + 4
+    const rows = Math.ceil(diagonal / spacing) + 4
+
+    ctx.save()
+    for (let row = -2; row < rows; row++) {
+      for (let col = -2; col < cols; col++) {
+        const x = padding + col * spacing - row * spacing * 0.7
+        const y = padding + col * spacing * 0.7 + row * spacing
+        if (x > padding - spacing && x < padding + drawW + spacing && y > padding - spacing && y < padding + drawH + spacing) {
+          ctx.save()
+          ctx.translate(x, y)
+          ctx.rotate(-Math.PI / 6)
+          ctx.fillText(text, 0, 0)
+          ctx.restore()
+        }
+      }
+    }
+    ctx.restore()
+    ctx.restore()
+
+    // 脚标
+    ctx.font = "600 24px system-ui, -apple-system, sans-serif"
+    ctx.fillStyle = "#4A4A4A"
+    ctx.textAlign = "center"
+    ctx.fillText("🦊 风格日记 · dada-ai.cn", canvas.width / 2, drawH + padding * 2 + 44)
+
+    ctx.font = "15px system-ui, -apple-system, sans-serif"
+    ctx.fillStyle = "#999"
+    ctx.fillText("上传你的衣服，AI 帮你搭配", canvas.width / 2, drawH + padding * 2 + 72)
 
     const dataUrl = canvas.toDataURL("image/png")
     canvasRef.current = canvas
