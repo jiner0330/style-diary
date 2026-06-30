@@ -29,6 +29,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className={`h-full antialiased ${zcoolKuaiLe.className}`}>
+      <head>
+        {process.env.NEXT_PUBLIC_BAIDU_TONGJI_ID && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?${process.env.NEXT_PUBLIC_BAIDU_TONGJI_ID}";
+  var s = document.getElementsByTagName("script")[0];
+  s.parentNode.insertBefore(hm, s);
+})();`,
+            }}
+          />
+        )}
+      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <AudioProvider>
           <main className="flex-1 flex flex-col max-w-md mx-auto w-full">
