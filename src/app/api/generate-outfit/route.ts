@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v2"
+const PROMPT_VERSION = "v3"
 
 interface OutfitItem {
   slot: string
@@ -24,7 +24,9 @@ interface OutfitItem {
   material?: string
   pattern?: string
   sub_category?: string
+  fit?: string
   length?: string
+  neckline?: string
   detail?: string
   style_tags?: string[]
   image_url?: string
@@ -70,7 +72,7 @@ const SUBCAT_SHAPE: Record<string, string> = {
 
   // ---- Dresses ----
   slip_dress: "slim slip dress, thin spaghetti straps, straight silhouette with a slight drape through the body, no waist seam, midi length, lightweight silky fabric",
-  bodycon_dress: "body-hugging bodycon dress, tightly fitted through the bust waist and hips, stretch fabric, often with thin straps or sleeveless, midi or mini length",
+  bodycon_dress: "body-hugging bodycon dress, tightly fitted through the bust waist and hips, stretch fabric that clings to every curve",
   a_line_dress: "A-line dress, fitted bodice flaring gradually from the waist to the hem in a clean A-shape, feminine silhouette",
   shirt_dress: "button-front shirt dress with a pointed collar, long sleeves with buttoned cuffs, self-tie belt at the waist, relaxed straight fit through the body",
   wrap_dress: "wrap dress with a V-neckline, overlapping front panels crossing at the waist and tying at the side seam, flared skirt, feminine silhouette",
@@ -145,6 +147,30 @@ const MATERIAL_TEXTURE: Record<string, string> = {
   "珍珠": "pearl, smooth lustrous surface",
   "塑料": "plastic, glossy or matte finish",
   "麂皮": "suede fabric, soft napped surface",
+}
+
+const FIT_MAP: Record<string, string> = {
+  "紧身": "tightly fitted, body-hugging",
+  "修身": "slim fit, tailored",
+  "合身": "regular fit",
+  "宽松": "relaxed fit, loose",
+  "oversized": "oversized fit, deliberately large",
+}
+
+const NECKLINE_MAP: Record<string, string> = {
+  "吊带": "thin spaghetti straps, sleeveless",
+  "圆领": "round crew neckline",
+  "V领": "V-neckline",
+  "方领": "square neckline",
+  "高领": "turtleneck, high folded collar covering the neck",
+  "翻领": "folded lapel collar",
+  "一字肩": "off-shoulder neckline, bare shoulders",
+  "一字领": "off-shoulder neckline, bare shoulders",
+  "无领": "collarless",
+  "挂脖": "halter neck, strap wraps behind the neck",
+  "小圆领": "small round neckline",
+  "立领": "mandarin stand collar",
+  "蝴蝶结飘带": "ribbon bow tie at neckline",
 }
 
 // Translate common Chinese fashion detail terms to English
@@ -326,17 +352,16 @@ function describeItem(i: OutfitItem): string {
   const shape = (i.sub_category && SUBCAT_SHAPE[i.sub_category]) || ""
   const lengthTable = LENGTH_MAP[i.slot] || LENGTH_MAP.default
   const lengthHint = (i.length && lengthTable[i.length]) || ""
+  const fitHint = (i.fit && FIT_MAP[i.fit]) || ""
+  const necklineHint = (i.neckline && NECKLINE_MAP[i.neckline]) || ""
 
-  // 首项 = 颜色 + 廓形；廓形缺失时退回 slot 通用名词，绝不为 undefined
   const base = shape || SLOT_NOUN[i.slot] || "garment"
   const attrs: string[] = [`${color} ${base}`]
-  // Material
   if (material) attrs.push(MATERIAL_TEXTURE[material] || `${material} fabric`)
-  // Length constraint — reinforces the sub_category description (按品类已自带措辞)
+  if (fitHint) attrs.push(fitHint)
+  if (necklineHint) attrs.push(necklineHint)
   if (lengthHint) attrs.push(lengthHint)
-  // Extra design details
   if (detail) attrs.push(detail)
-  // Pattern
   if (pattern) attrs.push(`${pattern} pattern`)
 
   return attrs.join(". ") + "."
@@ -637,7 +662,7 @@ function getToken(request: NextRequest): string | null {
 // 搭配指纹：把影响出图的属性拼成确定性字符串再哈希成短 key（同搭配 → 同 key）
 function outfitFingerprint(items: OutfitItem[], angleIndex: number): string {
   const sig = items
-    .map((i) => [i.name, i.color, i.material ?? "", i.sub_category ?? "", i.detail ?? "", i.pattern ?? "", i.length ?? ""].join("|"))
+    .map((i) => [i.name, i.color, i.material ?? "", i.sub_category ?? "", i.fit ?? "", i.length ?? "", i.neckline ?? "", i.detail ?? "", i.pattern ?? ""].join("|"))
     .sort().join("||")
   const hash = Array.from(`${PROMPT_VERSION}|${sig}|${angleIndex}`)
     .reduce((s, c) => ((s << 5) - s + c.charCodeAt(0)) | 0, 0)
