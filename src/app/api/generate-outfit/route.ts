@@ -674,26 +674,45 @@ async function runEdit(prompt: string, imageUrls: string[]): Promise<string> {
   try {
     // Download all reference images
     const imageBuffers = await Promise.all(imageUrls.map((url) => downloadImageBuffer(url)))
-    console.log(`[generate-outfit] downloaded ${imageBuffers.length} reference images (${(imageBuffers.reduce((s, b) => s + b.length, 0) / 1024).toFixed(0)}KB total)`)
+    const totalKb = (imageBuffers.reduce((s, b) => s + b.length, 0) / 1024).toFixed(0)
+    console.log(`[generate-outfit] downloaded ${imageBuffers.length} reference images (${totalKb}KB total)`)
 
-    // Build multipart/form-data
-    const form = new FormData()
-    form.append("model", MODEL)
-    form.append("prompt", prompt)
-    form.append("quality", "standard")
-    form.append("n", "1")
-    form.append("size", "768x1152")
-    form.append("response_format", "b64_json")
-    for (const buf of imageBuffers) {
-      form.append("image", new Blob([new Uint8Array(buf)], { type: "image/jpeg" }))
+    // Build multipart/form-data manually — Node.js FormData + Blob serialization is unreliable
+    const boundary = "----Ofox" + Math.random().toString(36).slice(2)
+    const crlf = "\r\n"
+    const parts: Buffer[] = []
+
+    const field = (name: string, value: string) => {
+      parts.push(Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="${name}"${crlf}${crlf}${value}${crlf}`))
     }
+
+    field("model", MODEL)
+    field("prompt", prompt)
+    field("quality", "standard")
+    field("n", "1")
+    field("size", "768x1152")
+    field("response_format", "b64_json")
+
+    for (let i = 0; i < imageBuffers.length; i++) {
+      const buf = imageBuffers[i]
+      const ext = imageUrls[i].startsWith("data:") ? "jpg" : (imageUrls[i].split(".").pop()?.split("?")[0] || "jpg")
+      parts.push(Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="image"; filename="ref_${i}.${ext}"${crlf}Content-Type: image/${ext === "png" ? "png" : "jpeg"}${crlf}${crlf}`))
+      parts.push(buf)
+      parts.push(Buffer.from(crlf))
+    }
+
+    parts.push(Buffer.from(`--${boundary}--${crlf}`))
+    const body = Buffer.concat(parts)
+
+    console.log(`[generate-outfit] multipart body: ${(body.length / 1024).toFixed(0)}KB, boundary=${boundary}`)
 
     const res = await fetch(`${OFOXAI_BASE}/v1/images/edits`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OFOXAI_KEY}`,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
       },
-      body: form,
+      body,
       signal: ctrl.signal,
       agent: new https.Agent({ rejectUnauthorized: false }),
     } as any)
@@ -776,7 +795,7 @@ export async function POST(request: NextRequest) {
     const cached = await fetch(publicUrl, { method: "HEAD" }).then((r) => r.ok).catch(() => false)
     if (cached) {
       console.log("[generate-outfit] cache hit:", objectPath)
-      return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: "text_only", cached: true })
+      return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: hasUserItem(items) ? "image_ref" : "text_only", cached: true })
     }
 
     // 未命中：生成
@@ -785,12 +804,19 @@ export async function POST(request: NextRequest) {
     console.log(`[generate-outfit] cache miss, mode=${useEdit ? "edit" : "gen"}, items=${items.length}`)
 
     let b64: string
+    let mode = "text_only"
     if (useEdit) {
       const refUrls = items
         .filter((i) => !!i.image_url && !i.image_url.startsWith("/"))
         .map((i) => i.image_url!)
       console.log(`[generate-outfit] edit with ${refUrls.length} reference images`)
-      b64 = await runEdit(prompt, refUrls)
+      try {
+        b64 = await runEdit(prompt, refUrls)
+        mode = "image_ref"
+      } catch (editErr: any) {
+        console.warn(`[generate-outfit] edit failed, falling back to generation: ${editErr.message}`)
+        b64 = await runGeneration(prompt)
+      }
     } else {
       b64 = await runGeneration(prompt)
     }
@@ -809,11 +835,11 @@ export async function POST(request: NextRequest) {
     if (upErr) {
       console.warn("[generate-outfit] cache upload failed, returning inline:", upErr.message)
       // 内联也用 JPEG（小很多）
-      return NextResponse.json({ status: "done", imageUrl: `data:image/jpeg;base64,${jpegBuffer.toString("base64")}`, prompt, promptZh, mode: "text_only" })
+      return NextResponse.json({ status: "done", imageUrl: `data:image/jpeg;base64,${jpegBuffer.toString("base64")}`, prompt, promptZh, mode })
     }
     console.log("[generate-outfit] cache uploaded:", objectPath, `(${(jpegBuffer.length / 1024).toFixed(0)}KB)`)
 
-    return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: "text_only" })
+    return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode })
   } catch (err) {
     console.error("[generate-outfit] POST error:", err)
     return NextResponse.json(
