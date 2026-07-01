@@ -509,7 +509,7 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
           {/* 输入区 */}
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => setShowPicker(true)}
+              onClick={() => { fetchWardrobe(); setShowPicker(true) }}
               disabled={loading}
               className="flex-shrink-0 w-8 h-8 rounded-lg bg-cream/80 text-warm-gray/60 hover:bg-rose/10 hover:text-rose
                          flex items-center justify-center text-base transition-colors disabled:opacity-50"
