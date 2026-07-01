@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v9"
+const PROMPT_VERSION = "v10"
 
 interface OutfitItem {
   slot: string
@@ -365,17 +365,21 @@ function describeItem(i: OutfitItem): string {
   const fitHint = (i.fit && FIT_MAP[i.fit]) || ""
   const necklineHint = (i.neckline && NECKLINE_MAP[i.neckline]) || ""
 
-  const base = shape || SLOT_NOUN[i.slot] || "garment"
-  const attrs: string[] = [`${color} ${base}`]
+  const simpleBase = SLOT_NOUN[i.slot] || "garment"
+  // 图案紧贴单品名：避免模型把图案当成独立概念忽略
+  const attrs: string[] = []
+  if (pattern) {
+    const patternEn = PATTERN_TRANSLATE[pattern] || pattern
+    attrs.push(`${color} ${simpleBase} with a ${patternEn} pattern`)
+    if (shape) attrs.push(shape)
+  } else {
+    attrs.push(`${color} ${shape || simpleBase}`)
+  }
   if (material) attrs.push(MATERIAL_TEXTURE[material] || `${material} fabric`)
   if (fitHint) attrs.push(fitHint)
   if (necklineHint) attrs.push(necklineHint)
   if (lengthHint) attrs.push(lengthHint)
   if (detail) attrs.push(detail)
-  if (pattern) {
-    const patternEn = PATTERN_TRANSLATE[pattern] || pattern
-    attrs.push(`${patternEn} pattern`)
-  }
 
   const structured = attrs.join(". ") + "."
 
