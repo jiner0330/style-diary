@@ -193,13 +193,13 @@ export async function classifyClothing(input: string | ArrayBuffer, mimeType = "
   "sub_category": "版型",
   "color_name": "颜色",
   "material": "材质",
-  "pattern": "图案",
+  "pattern": "pattern in English (plaid, checked, striped, floral, solid, polka dot, camo, leopard, houndstooth, color-block, tie-dye, paisley, gingham, argyle) or null",
   "fit": "紧身|修身|合身|宽松|oversized 或null",
   "length": "短款|常规|中长|长款 或null",
   "neckline": "圆领|V领|方领|高领|翻领|一字肩|吊带|无领 或null",
   "detail": "设计细节",
   "style_tags": ["1-3个标签"],
-  "english_description": "Detailed English description for AI image generation. Cover: silhouette, color (use precise English color names like 'pale blue', 'cream white', 'charcoal black'), pattern (translate to English), material texture, fit, neckline, sleeve type, length, and any distinctive design details. Write as a natural flowing sentence suitable as a prompt for an image model."
+  "english_description": "Detailed English description for AI image generation. Cover: silhouette, color (use precise English color names), pattern (MUST describe pattern in English if present, e.g. 'checked', 'plaid', 'striped'), material texture, fit, neckline, sleeve type, length, and any distinctive design details. Write as a natural flowing sentence."
 }
 
 category(品类): dress|top|bottom|outerwear|shoes|bag|accessory
