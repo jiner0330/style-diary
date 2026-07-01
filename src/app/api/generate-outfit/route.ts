@@ -266,7 +266,7 @@ const DETAIL_TRANSLATE: Record<string, string> = {
   "廓形": "structured silhouette",
   "虚压褶": "soft pressed pleats", "压褶": "pressed pleats", "竖向": "vertical",
   // Hem & legs
-  "不规则": "irregular", "不对称": "asymmetrical", "裙摆": "hemline", "裙身": "skirt body", "下摆": "hem", "散开": "flared",
+  "不规则": "irregular", "裙摆": "hemline", "裙身": "skirt body", "下摆": "hem", "散开": "flared",
   "微扩": "slightly flared", "阔腿": "wide-leg", "直筒": "straight-leg",
   "宽边": "wide", "裤脚": "leg opening",
   // Structure
