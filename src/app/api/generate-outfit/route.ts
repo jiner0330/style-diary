@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import https from "https"
 import { createClient } from "@supabase/supabase-js"
+import sharp from "sharp"
 
 // Hobby 计划函数最长 60s；同步生图须在此预算内完成
 export const maxDuration = 60
@@ -667,7 +668,7 @@ export async function POST(request: NextRequest) {
     // 缓存 key：含用户上传单品 → 按 ownerId 隔离；纯预设 → 全局共享
     const key = outfitFingerprint(items, angleIndex)
     const folder = hasUserItem(items) ? `u/${user.id}` : "g"
-    const objectPath = `${folder}/${key}.png`
+    const objectPath = `${folder}/${key}.jpg`
     const { data: urlData } = supabase.storage.from(RENDER_BUCKET).getPublicUrl(objectPath)
     const publicUrl = urlData.publicUrl
 
@@ -683,17 +684,22 @@ export async function POST(request: NextRequest) {
     const b64 = await runGeneration(prompt)
     console.log(`[generate-outfit] done in ${Date.now() - t0}ms`)
 
-    // 写入缓存，下次复用；上传失败不阻塞——退回内联 base64
-    // 用 service_role admin client 绕过 RLS，避免 anon+JWT header 传递问题
+    // 写入缓存，压缩为 JPEG（PNG 太大，768x1152 可达 3-6MB，加载慢）
     const supabaseAdmin = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const jpegBuffer = await sharp(Buffer.from(b64, "base64"))
+      .jpeg({ quality: 85, progressive: true })
+      .toBuffer()
+    const cacheContentType = "image/jpeg"
+
     const { error: upErr } = await supabaseAdmin.storage
       .from(RENDER_BUCKET)
-      .upload(objectPath, Buffer.from(b64, "base64"), { contentType: "image/png", upsert: true })
+      .upload(objectPath, jpegBuffer, { contentType: cacheContentType, upsert: true })
     if (upErr) {
       console.warn("[generate-outfit] cache upload failed, returning inline:", upErr.message)
-      return NextResponse.json({ status: "done", imageUrl: `data:image/png;base64,${b64}`, prompt, promptZh, mode: "text_only" })
+      // 内联也用 JPEG（小很多）
+      return NextResponse.json({ status: "done", imageUrl: `data:image/jpeg;base64,${jpegBuffer.toString("base64")}`, prompt, promptZh, mode: "text_only" })
     }
-    console.log("[generate-outfit] cache uploaded:", objectPath)
+    console.log("[generate-outfit] cache uploaded:", objectPath, `(${(jpegBuffer.length / 1024).toFixed(0)}KB)`)
 
     return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: "text_only" })
   } catch (err) {
