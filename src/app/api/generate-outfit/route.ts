@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v11"
+const PROMPT_VERSION = "v12"
 
 interface OutfitItem {
   slot: string
@@ -147,6 +147,7 @@ const MATERIAL_TEXTURE: Record<string, string> = {
   "珍珠": "pearl, smooth lustrous surface",
   "塑料": "plastic, glossy or matte finish",
   "麂皮": "suede fabric, soft napped surface",
+  "天丝": "Tencel lyocell fabric, smooth with subtle sheen and fluid drape",
 }
 
 const FIT_MAP: Record<string, string> = {
@@ -265,7 +266,7 @@ const DETAIL_TRANSLATE: Record<string, string> = {
   "廓形": "structured silhouette",
   "虚压褶": "soft pressed pleats", "压褶": "pressed pleats", "竖向": "vertical",
   // Hem & legs
-  "裙摆": "hemline", "裙身": "skirt body", "下摆": "hem", "散开": "flared",
+  "不规则": "irregular", "不对称": "asymmetrical", "裙摆": "hemline", "裙身": "skirt body", "下摆": "hem", "散开": "flared",
   "微扩": "slightly flared", "阔腿": "wide-leg", "直筒": "straight-leg",
   "宽边": "wide", "裤脚": "leg opening",
   // Structure
