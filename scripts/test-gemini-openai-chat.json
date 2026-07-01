@@ -1,0 +1,25 @@
+{
+  "id": "Ca5Eat2VKLiJ7OsP1bqzoQs",
+  "object": "chat.completion",
+  "created": 1782885897,
+  "model": "google/gemini-2.5-flash-image",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": ""
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 811,
+    "completion_tokens": 1309,
+    "total_tokens": 2120,
+    "prompt_tokens_details": {
+      "text_tokens": 295,
+      "image_tokens": 516
+    }
+  }
+}

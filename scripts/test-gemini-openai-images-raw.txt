@@ -1,0 +1,1 @@
+{"error":{"code":null,"message":"Invalid JSON payload received. Unknown name \"numberOfImages\" at 'generation_config.image_config': Cannot find field.","param":null,"type":"invalid_request_error"}}

@@ -1,0 +1,1 @@
+{"error":{"message":"Image editing is not supported for model 'volcengine/doubao-seedream-4.5'. Please use an OpenAI or Azure OpenAI model. [ofox.ai]","type":"invalid_request_error","code":400}}

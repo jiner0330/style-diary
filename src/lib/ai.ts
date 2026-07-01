@@ -130,6 +130,7 @@ export interface ClassifyResult {
   fit: string | null
   length: string | null
   neckline: string | null
+  english_description: string | null
 }
 
 // sub_category 枚举，按品类分组
@@ -197,7 +198,8 @@ export async function classifyClothing(input: string | ArrayBuffer, mimeType = "
   "length": "短款|常规|中长|长款 或null",
   "neckline": "圆领|V领|方领|高领|翻领|一字肩|吊带|无领 或null",
   "detail": "设计细节",
-  "style_tags": ["1-3个标签"]
+  "style_tags": ["1-3个标签"],
+  "english_description": "Detailed English description for AI image generation. Cover: silhouette, color (use precise English color names like 'pale blue', 'cream white', 'charcoal black'), pattern (translate to English), material texture, fit, neckline, sleeve type, length, and any distinctive design details. Write as a natural flowing sentence suitable as a prompt for an image model."
 }
 
 category(品类): dress|top|bottom|outerwear|shoes|bag|accessory
@@ -270,10 +272,11 @@ style_tags仅可选: 简约|法式|甜美|复古|街头|辣妹风|学院|通勤|
         neckline: validNecklines.includes(result.neckline) ? result.neckline : null,
         detail: result.detail || null,
         style_tags: Array.isArray(result.style_tags) ? result.style_tags.slice(0, 3) : [],
+        english_description: result.english_description || null,
       }
     }
 
-    return { category: "top", name: "未命名", sub_category: null, color: "#FAF7F4", material: null, pattern: null, fit: null, length: null, neckline: null, detail: null, style_tags: [] }
+    return { category: "top", name: "未命名", sub_category: null, color: "#FAF7F4", material: null, pattern: null, fit: null, length: null, neckline: null, detail: null, style_tags: [], english_description: null }
   } finally {
     clearTimeout(timer)
   }

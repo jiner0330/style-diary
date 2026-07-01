@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v5"
+const PROMPT_VERSION = "v6"
 
 interface OutfitItem {
   slot: string
@@ -30,6 +30,7 @@ interface OutfitItem {
   detail?: string
   style_tags?: string[]
   image_url?: string
+  english_description?: string
 }
 
 // Rich silhouette descriptions — each entry captures the key visual features
@@ -345,6 +346,9 @@ const SLOT_NOUN: Record<string, string> = {
 }
 
 function describeItem(i: OutfitItem): string {
+  // 优先用 gpt-4o 原生英文描述，绕过中文→英文翻译字典
+  if (i.english_description && i.english_description.length >= 20) return i.english_description
+
   const color = describeColor(i.color)
   const material = i.material || ""
   const pattern = i.pattern || ""

@@ -1,0 +1,1 @@
+{"error":{"code":null,"message":"The parameter `size` specified in the request is not valid: image size must be at least 3686400 pixels. Request id: 021782886194866ed42e8978f7887761870c2af59029dd7bb3cf2","param":null,"type":"invalid_request_error"}}

@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
     let fit: string | null = null
     let length: string | null = null
     let neckline: string | null = null
+    let english_description: string | null = null
     try {
       const result = await classifyClothing(buffer, file.type)
       category = result.category
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
       fit = result.fit ?? null
       length = result.length ?? null
       neckline = result.neckline ?? null
+      english_description = result.english_description ?? null
       console.log(`[upload] step3: AI OK - ${category} | ${itemName} | sub:${sub_category} | color:${color} | fit:${fit} | tags:${style_tags.join(",")}`)
     } catch (err) {
       console.warn("[upload] step3: AI failed, using defaults:", err)
