@@ -688,7 +688,7 @@ async function runEdit(prompt: string, imageUrls: string[]): Promise<string> {
 
     field("model", MODEL)
     field("prompt", prompt)
-    field("quality", "standard")
+    field("quality", "high")
     field("n", "1")
     field("size", "768x1152")
     field("response_format", "b64_json")
