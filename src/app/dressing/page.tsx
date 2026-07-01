@@ -319,17 +319,17 @@ function DressingContent() {
     const currentOutfit = useOutfitStore.getState().outfit
     const aiCache = useOutfitStore.getState().aiItemsCache
     const slots = ["dress", "top", "bottom", "outerwear", "shoes", "bag"] as const
-    const items: { slot: string; name: string; color: string; category: string; material?: string; pattern?: string; sub_category?: string; fit?: string; length?: string; neckline?: string; detail?: string; style_tags?: string[]; image_url?: string; english_description?: string }[] = []
+    const items: { slot: string; name: string; color: string; category: string; material?: string; pattern?: string; sub_category?: string; fit?: string; length?: string; neckline?: string; detail?: string; style_tags?: string[]; image_url?: string }[] = []
     for (const slot of slots) {
       const id = currentOutfit[slot]
       if (id && typeof id === "string") {
         const item = getItemById(id) || aiCache[id]
-        if (item) items.push({ slot, name: item.name, color: item.color, category: item.category, material: item.material ?? undefined, pattern: item.pattern ?? undefined, sub_category: item.sub_category ?? undefined, fit: item.fit ?? undefined, length: item.length ?? undefined, neckline: item.neckline ?? undefined, detail: item.detail ?? undefined, style_tags: item.style_tags ?? undefined, image_url: item.image_url ?? undefined, english_description: item.english_description ?? undefined })
+        if (item) items.push({ slot, name: item.name, color: item.color, category: item.category, material: item.material ?? undefined, pattern: item.pattern ?? undefined, sub_category: item.sub_category ?? undefined, fit: item.fit ?? undefined, length: item.length ?? undefined, neckline: item.neckline ?? undefined, detail: item.detail ?? undefined, style_tags: item.style_tags ?? undefined, image_url: item.image_url ?? undefined })
       }
     }
     for (const accId of currentOutfit.accessories) {
       const acc = getItemById(accId) || aiCache[accId]
-      if (acc) items.push({ slot: "accessories", name: acc.name, color: acc.color, category: "accessory", material: acc.material ?? undefined, pattern: acc.pattern ?? undefined, sub_category: acc.sub_category ?? undefined, fit: acc.fit ?? undefined, length: acc.length ?? undefined, neckline: acc.neckline ?? undefined, detail: acc.detail ?? undefined, style_tags: acc.style_tags ?? undefined, image_url: acc.image_url ?? undefined, english_description: acc.english_description ?? undefined })
+      if (acc) items.push({ slot: "accessories", name: acc.name, color: acc.color, category: "accessory", material: acc.material ?? undefined, pattern: acc.pattern ?? undefined, sub_category: acc.sub_category ?? undefined, fit: acc.fit ?? undefined, length: acc.length ?? undefined, neckline: acc.neckline ?? undefined, detail: acc.detail ?? undefined, style_tags: acc.style_tags ?? undefined, image_url: acc.image_url ?? undefined })
     }
     return items
   }

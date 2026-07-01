@@ -352,7 +352,6 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
         detail: ai.detail || null,
         style_tags: ai.style_tags,
         image_url: null,
-        english_description: ai.english_description || null,
         layer_order: 0,
         occupies_full_body: ai.category === "dress",
         source: "ai_recommended",

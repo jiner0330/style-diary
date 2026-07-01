@@ -56,7 +56,6 @@ export interface ClothingItem {
   detail?: string | null
   style_tags: string[]
   image_url: string | null
-  english_description?: string | null
   layer_order: number
   occupies_full_body: boolean
   source: ClothingSource
@@ -110,7 +109,6 @@ export interface AIOutfitItem {
   detail?: string
   pattern?: string
   style_tags: string[]
-  english_description?: string
 }
 
 // AI 搭配方案

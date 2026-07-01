@@ -130,7 +130,6 @@ export interface ClassifyResult {
   fit: string | null
   length: string | null
   neckline: string | null
-  english_description: string | null
 }
 
 // sub_category 枚举，按品类分组
@@ -185,27 +184,38 @@ export async function classifyClothing(input: string | ArrayBuffer, mimeType = "
         content: [
           {
             type: "text",
-            text: `识别这件服装单品，只输出JSON，不要其他文字。
+            text: `Analyze this clothing item. Output ONLY a JSON object, no markdown, no extra text.
 
 {
-  "category": "品类",
+  "category": "dress|top|bottom|outerwear|shoes|bag|accessory",
   "name": "中文名称",
-  "sub_category": "版型",
+  "sub_category": "silhouette type (see enums below)",
   "color_name": "颜色",
-  "material": "材质",
-  "pattern": "图案（如：格纹、条纹、碎花、纯色、波点、豹纹、千鸟格、拼接、扎染、迷彩）或null",
-  "fit": "紧身|修身|合身|宽松|oversized 或null",
-  "length": "短款|常规|中长|长款 或null",
-  "neckline": "圆领|V领|方领|高领|翻领|一字肩|吊带|无领 或null",
-  "detail": "设计细节",
-  "style_tags": ["1-3个标签"],
-  "english_description": "Detailed English description for AI image generation. Cover: silhouette, color (use precise English color names), pattern (MUST describe pattern in English if present, e.g. 'checked', 'plaid', 'striped'), material texture, fit, neckline, sleeve type, length, and any distinctive design details. Write as a natural flowing sentence."
+  "material": "English: describe fabric and texture naturally, e.g. 'soft knit fabric with stretch', 'crisp cotton with clean finish', 'lightweight chiffon with fluid drape'. Or null.",
+  "pattern": "English: name the pattern explicitly, e.g. 'checked plaid', 'striped', 'floral print', 'polka dot', 'solid'. Or null.",
+  "fit": "English: 'tightly fitted body-hugging' | 'slim fit tailored' | 'regular fit' | 'relaxed fit loose' | 'oversized fit' | null",
+  "length": "English: 'cropped waist-length' | 'regular hip-length' | 'midi length knee-to-calf' | 'maxi length ankle-length' | null. For tops use hip-length reference, for skirts/dresses use leg-length reference.",
+  "neckline": "English: describe neckline and sleeve type naturally, e.g. 'U-neckline sleeveless', 'thin spaghetti straps', 'V-neckline', 'round crew neckline short sleeves', 'square neckline', 'turtleneck long sleeves', 'off-shoulder long sleeves'. Or null.",
+  "detail": "English: distinctive design details, e.g. 'irregular asymmetrical hem', 'front button placket', 'back zipper closure', 'ribbed cuffs and hem'. Or null.",
+  "style_tags": ["1-3 Chinese style tags"]
 }
 
-category(品类): dress|top|bottom|outerwear|shoes|bag|accessory
-sub_category: top: sweater|shirt|blouse|cardigan|hoodie|henley|turtleneck|off_shoulder_corset|halter|off_shoulder_ls|puff_sleeve|off_shoulder_tee|sweatshirt|tank|t_shirt|polo|cami / bottom: jeans|trousers|skirt|shorts|cargo|chinos|wide_jeans|mermaid_skirt|pencil_skirt|tiered_tulle_skirt|a_line_skirt|pleated_skirt / dress: slip_dress(吊带)|bodycon_dress(紧身)|a_line_dress(A字)|shirt_dress(衬衫裙)|wrap_dress(裹身裙)|mini|midi|maxi|off_shoulder_dress|qipao / outerwear: blazer|jacket|trench|bomber / shoes: sneakers|heels|boots|loafers / bag: tote|shoulder / accessory: necklace|earrings|scarf|sunglasses|belt|watch
-color_name: 如有图案（格纹/条纹/碎花等），选图案的底色或主色，不要选远看混合色。例如黑白格纹→"黑色"，蓝白条纹→"蓝色"，红白波点→"红色"。可选:白色|米白|黑色|深灰|灰色|浅灰|浅蓝|深蓝|藏青|蓝色|牛仔蓝|酒红|红色|粉色|裸粉|豆沙粉|卡其|驼色|棕色|黄色|姜黄|绿色|墨绿|军绿|灰绿|亮绿|翠绿|薄荷绿|浅绿|紫色|橙色
-style_tags仅可选: 简约|法式|甜美|复古|街头|辣妹风|学院|通勤|波西米亚|运动`,
+Category: dress|top|bottom|outerwear|shoes|bag|accessory
+
+Sub_category by category:
+- top: sweater|shirt|blouse|cardigan|hoodie|henley|turtleneck|off_shoulder_corset|halter|off_shoulder_ls|puff_sleeve|off_shoulder_tee|sweatshirt|tank|t_shirt|polo|cami
+- bottom: jeans|trousers|skirt|shorts|cargo|chinos|wide_jeans|mermaid_skirt|pencil_skirt|tiered_tulle_skirt|a_line_skirt|pleated_skirt
+- dress: slip_dress|bodycon_dress|a_line_dress|shirt_dress|wrap_dress|mini|midi|maxi|off_shoulder_dress|qipao
+- outerwear: blazer|jacket|trench|bomber
+- shoes: sneakers|heels|boots|loafers
+- bag: tote|shoulder
+- accessory: necklace|earrings|scarf|sunglasses|belt|watch
+
+Color_name RULES:
+- For patterned items (checked, striped, floral), pick the BASE/DOMINANT color, NOT the visually blended impression. Black-white checked pattern → "黑色", NOT "灰色". Blue-white striped → "蓝色". Red polka dots on white → "白色".
+- Options: 白色|米白|黑色|深灰|灰色|浅灰|浅蓝|深蓝|藏青|蓝色|牛仔蓝|酒红|红色|粉色|裸粉|豆沙粉|卡其|驼色|棕色|黄色|姜黄|绿色|墨绿|军绿|灰绿|亮绿|翠绿|薄荷绿|浅绿|紫色|橙色
+
+Style tags (Chinese only): 简约|法式|甜美|复古|街头|辣妹风|学院|通勤|波西米亚|运动`,
           },
           { type: "image_url", image_url: { url: imageSrc } },
         ],
@@ -257,26 +267,24 @@ style_tags仅可选: 简约|法式|甜美|复古|街头|辣妹风|学院|通勤|
       const colorName = result.color_name || "米白"
       const color = COLOR_NAME_TO_HEX[colorName] || "#FAF7F4"
 
-      const validFits = ["紧身", "修身", "合身", "宽松", "oversized"]
-      const validLengths = ["短款", "常规", "中长", "长款"]
-      const validNecklines = ["圆领", "V领", "方领", "高领", "翻领", "一字肩", "吊带", "无领"]
+      // Fit, length, neckline, material, pattern, detail are now English free-form —
+      // accept any non-null string value directly, no enum validation needed
       return {
         category,
         name: result.name || "未命名",
         sub_category,
         color,
-        material: result.material || null,
-        pattern: result.pattern || null,
-        fit: validFits.includes(result.fit) ? result.fit : null,
-        length: validLengths.includes(result.length) ? result.length : null,
-        neckline: validNecklines.includes(result.neckline) ? result.neckline : null,
-        detail: result.detail || null,
+        material: typeof result.material === "string" ? result.material : null,
+        pattern: typeof result.pattern === "string" ? result.pattern : null,
+        fit: typeof result.fit === "string" ? result.fit : null,
+        length: typeof result.length === "string" ? result.length : null,
+        neckline: typeof result.neckline === "string" ? result.neckline : null,
+        detail: typeof result.detail === "string" ? result.detail : null,
         style_tags: Array.isArray(result.style_tags) ? result.style_tags.slice(0, 3) : [],
-        english_description: result.english_description || null,
       }
     }
 
-    return { category: "top", name: "未命名", sub_category: null, color: "#FAF7F4", material: null, pattern: null, fit: null, length: null, neckline: null, detail: null, style_tags: [], english_description: null }
+    return { category: "top", name: "未命名", sub_category: null, color: "#FAF7F4", material: null, pattern: null, fit: null, length: null, neckline: null, detail: null, style_tags: [] }
   } finally {
     clearTimeout(timer)
   }

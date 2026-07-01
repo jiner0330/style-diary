@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v10"
+const PROMPT_VERSION = "v11"
 
 interface OutfitItem {
   slot: string
@@ -30,7 +30,6 @@ interface OutfitItem {
   detail?: string
   style_tags?: string[]
   image_url?: string
-  english_description?: string
 }
 
 // Rich silhouette descriptions — each entry captures the key visual features
@@ -353,43 +352,41 @@ const SLOT_NOUN: Record<string, string> = {
   outerwear: "jacket", shoes: "shoes", bag: "bag",
 }
 
-function describeItem(i: OutfitItem): string {
-  // 始终先构建结构化描述，确保颜色、版型、图案不丢失
-  const color = describeColor(i.color)
-  const material = i.material || ""
-  const pattern = i.pattern || ""
-  const detail = translateDetail(i.detail || "")
-  const shape = (i.sub_category && SUBCAT_SHAPE[i.sub_category]) || ""
-  const lengthTable = LENGTH_MAP[i.slot] || LENGTH_MAP.default
-  const lengthHint = (i.length && lengthTable[i.length]) || ""
-  const fitHint = (i.fit && FIT_MAP[i.fit]) || ""
-  const necklineHint = (i.neckline && NECKLINE_MAP[i.neckline]) || ""
+// 如果值是中文就用字典翻译，已经是英文就直接用
+function en(value: string | null | undefined, dict: Record<string, string>): string {
+  if (!value) return ""
+  if (!/[\u4e00-\u9fff]/.test(value)) return value
+  return dict[value] || ""
+}
 
+function describeItem(i: OutfitItem): string {
+  const color = describeColor(i.color)
+  const shape = (i.sub_category && SUBCAT_SHAPE[i.sub_category]) || ""
   const simpleBase = SLOT_NOUN[i.slot] || "garment"
-  // 图案紧贴单品名：避免模型把图案当成独立概念忽略
+
+  const material = en(i.material, MATERIAL_TEXTURE)
+  const pattern = en(i.pattern, PATTERN_TRANSLATE)
+  const lengthTable = LENGTH_MAP[i.slot] || LENGTH_MAP.default
+  const lengthHint = en(i.length, lengthTable)
+  const fitHint = en(i.fit, FIT_MAP)
+  const necklineHint = en(i.neckline, NECKLINE_MAP)
+  const detail = translateDetail(i.detail || "")
+
   const attrs: string[] = []
+  // 图案紧贴单品名：避免模型把图案当成独立概念忽略
   if (pattern) {
-    const patternEn = PATTERN_TRANSLATE[pattern] || pattern
-    attrs.push(`${color} ${simpleBase} with a ${patternEn} pattern`)
+    attrs.push(`${color} ${simpleBase} with a ${pattern} pattern`)
     if (shape) attrs.push(shape)
   } else {
     attrs.push(`${color} ${shape || simpleBase}`)
   }
-  if (material) attrs.push(MATERIAL_TEXTURE[material] || `${material} fabric`)
+  if (material) attrs.push(material)
   if (fitHint) attrs.push(fitHint)
   if (necklineHint) attrs.push(necklineHint)
   if (lengthHint) attrs.push(lengthHint)
   if (detail) attrs.push(detail)
 
-  const structured = attrs.join(". ") + "."
-
-  // 如果有 gpt-4o 英文描述，作为补充细节追加（但不替代结构化描述）
-  if (i.english_description && i.english_description.length >= 20) {
-    // 避免重复已覆盖的信息，截取英文描述的后半段或独特细节
-    return `${structured} Additional details: ${i.english_description}`
-  }
-
-  return structured
+  return attrs.join(". ") + "."
 }
 
 const SLOT_LABEL: Record<string, string> = {
