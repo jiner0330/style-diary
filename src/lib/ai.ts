@@ -258,13 +258,17 @@ style_tags仅可选: 简约|法式|甜美|复古|街头|辣妹风|学院|通勤|
       const validFits = ["紧身", "修身", "合身", "宽松", "oversized"]
       const validLengths = ["短款", "常规", "中长", "长款"]
       const validNecklines = ["圆领", "V领", "方领", "高领", "翻领", "一字肩", "吊带", "无领"]
+      const validPatterns = ["格纹", "条纹", "碎花", "纯色", "波点", "豹纹", "千鸟格", "拼接", "扎染", "迷彩", "佩斯利", "菱格", "格子", "苏格兰格"]
+      const rawPattern = result.pattern
+      const pattern = validPatterns.includes(rawPattern) ? rawPattern : null
+      if (rawPattern && !pattern) console.log(`[vision] pattern ignored: "${rawPattern}" not in whitelist`)
       return {
         category,
         name: result.name || "未命名",
         sub_category,
         color,
         material: result.material || null,
-        pattern: result.pattern || null,
+        pattern,
         fit: validFits.includes(result.fit) ? result.fit : null,
         length: validLengths.includes(result.length) ? result.length : null,
         neckline: validNecklines.includes(result.neckline) ? result.neckline : null,

@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v12"
+const PROMPT_VERSION = "v13"
 
 interface OutfitItem {
   slot: string
@@ -258,6 +258,11 @@ const DETAIL_TRANSLATE: Record<string, string> = {
   "卷边": "rolled edge", "碎花": "small floral print",
   "排列": "arranged", "丝绸": "silk fabric",
   "图案": "pattern", "材质": "fabric material",
+  // Pattern names — keep these in DETAIL_TRANSLATE so they don't get stripped
+  "格纹": "checked plaid", "格子": "gingham check", "条纹": "stripe",
+  "豹纹": "leopard print", "千鸟格": "houndstooth", "扎染": "tie-dye",
+  "迷彩": "camo", "佩斯利": "paisley", "菱格": "argyle",
+  "苏格兰格": "tartan plaid",
   "光泽感": "luminous sheen",
   // Texture & shape
   "荷叶边": "ruffled trim", "蕾丝": "lace trim", "褶皱": "gathered ruched",
@@ -367,6 +372,7 @@ function describeItem(i: OutfitItem): string {
 
   const material = en(i.material, MATERIAL_TEXTURE)
   const pattern = en(i.pattern, PATTERN_TRANSLATE)
+  console.log(`[describeItem] slot=${i.slot} name=${i.name} rawPattern="${i.pattern}" translated="${pattern}"`)
   const lengthTable = LENGTH_MAP[i.slot] || LENGTH_MAP.default
   const lengthHint = en(i.length, lengthTable)
   const fitHint = en(i.fit, FIT_MAP)
