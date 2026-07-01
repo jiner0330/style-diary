@@ -461,7 +461,7 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
 
       {/* 输入卡片 — 无消息时垂直居中，有消息时贴在消息下方 */}
       <div className={`px-4 ${messages.length === 0 && !loading ? "flex-1 flex flex-col justify-center" : "flex-shrink-0 pt-2"}`}>
-        <div className="rounded-2xl bg-cream/60 border border-warm-gray/15 px-4 py-4 space-y-3">
+        <div className="rounded-2xl bg-cream/60 border border-warm-gray/15 px-3 py-4 space-y-3">
           {/* 欢迎提示（无消息时显示） */}
           {messages.length === 0 && (
             <div className="text-center">
@@ -524,7 +524,7 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
               onKeyDown={(e) => { if (e.key === "Enter") sendMessage(input) }}
               placeholder="描述你的搭配需求..."
               disabled={loading}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-soft-white text-sm text-charcoal placeholder:text-warm-gray/40
+              className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-soft-white text-sm text-charcoal placeholder:text-warm-gray/40
                          outline-none focus:ring-2 focus:ring-rose/20 disabled:opacity-50"
             />
             <button
