@@ -56,6 +56,15 @@ export default function RootLayout({
             >
               苏ICP备2026042784号
             </a>
+            <span className="text-[10px] text-warm-gray/30 mx-1">|</span>
+            <a
+              href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=32059002008176"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-warm-gray/40 hover:text-warm-gray/60 transition-colors"
+            >
+              苏公网安备32059002008176号
+            </a>
           </footer>
         </AudioProvider>
         <Toaster
