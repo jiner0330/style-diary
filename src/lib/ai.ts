@@ -193,7 +193,7 @@ export async function classifyClothing(input: string | ArrayBuffer, mimeType = "
   "sub_category": "版型",
   "color_name": "颜色",
   "material": "材质",
-  "pattern": "pattern in English (plaid, checked, striped, floral, solid, polka dot, camo, leopard, houndstooth, color-block, tie-dye, paisley, gingham, argyle) or null",
+  "pattern": "图案（如：格纹、条纹、碎花、纯色、波点、豹纹、千鸟格、拼接、扎染、迷彩）或null",
   "fit": "紧身|修身|合身|宽松|oversized 或null",
   "length": "短款|常规|中长|长款 或null",
   "neckline": "圆领|V领|方领|高领|翻领|一字肩|吊带|无领 或null",

@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v7"
+const PROMPT_VERSION = "v8"
 
 interface OutfitItem {
   slot: string
@@ -172,6 +172,14 @@ const NECKLINE_MAP: Record<string, string> = {
   "小圆领": "small round neckline",
   "立领": "mandarin stand collar",
   "蝴蝶结飘带": "ribbon bow tie at neckline",
+}
+
+const PATTERN_TRANSLATE: Record<string, string> = {
+  "格纹": "checked plaid", "条纹": "striped", "碎花": "floral",
+  "纯色": "solid color", "波点": "polka dot", "豹纹": "leopard print",
+  "千鸟格": "houndstooth", "拼接": "color-block", "扎染": "tie-dye",
+  "迷彩": "camo", "佩斯利": "paisley", "菱格": "argyle",
+  "格子": "gingham check", "苏格兰格": "tartan plaid",
 }
 
 // Translate common Chinese fashion detail terms to English
@@ -349,9 +357,10 @@ function describeItem(i: OutfitItem): string {
   // 优先用 gpt-4o 原生英文描述，绕过中文→英文翻译字典
   if (i.english_description && i.english_description.length >= 20) {
     let desc = i.english_description
-    // 安全兜底：pattern 字段现在是英文，若描述里没提到就追加
-    if (i.pattern && !desc.toLowerCase().includes(i.pattern.toLowerCase())) {
-      desc += ` Features a ${i.pattern} pattern.`
+    // 安全兜底：pattern 翻译后若描述里没提到就追加
+    const patternEn = i.pattern ? (PATTERN_TRANSLATE[i.pattern] || i.pattern) : null
+    if (patternEn && !desc.toLowerCase().includes(patternEn.toLowerCase())) {
+      desc += ` Features a ${patternEn} pattern.`
     }
     return desc
   }
@@ -373,7 +382,10 @@ function describeItem(i: OutfitItem): string {
   if (necklineHint) attrs.push(necklineHint)
   if (lengthHint) attrs.push(lengthHint)
   if (detail) attrs.push(detail)
-  if (pattern) attrs.push(`${pattern} pattern`)
+  if (pattern) {
+    const patternEn = PATTERN_TRANSLATE[pattern] || pattern
+    attrs.push(`${patternEn} pattern`)
+  }
 
   return attrs.join(". ") + "."
 }
