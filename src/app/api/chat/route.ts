@@ -328,10 +328,16 @@ async function agentLoop(
   bodyType?: string | null,
   styleTags?: string[],
   outfitContext?: string | null,
+  selectedItemsDetail?: string | null,
 ): Promise<{ content: string; rounds: number; plans: Record<string, unknown>[] }> {
   const messages: Message[] = [
     { role: "system", content: getSystemPrompt({ gender, bodyType, styleTags, weatherSummary }) },
   ]
+  // 用户通过衣橱选择器明确指定的单品 → 最高优先级，必须围绕这些单品搭配
+  if (selectedItemsDetail) {
+    const selectedBlock = `## 用户已指定搭配单品（最高优先级）\n用户通过衣橱选择器明确选择了以下单品，请**必须**围绕这些单品进行搭配，不要使用衣橱中其他无关单品：\n${selectedItemsDetail}`
+    messages.push({ role: "user", content: selectedBlock })
+  }
   // 注入搭配面板参考信息（软性提示，AI 自行判断是否使用）
   if (outfitContext) {
     const contextBlock = `## 用户搭配面板参考\n用户当前搭配面板中有以下单品（仅供参考，用户的实际需求可能与这些单品相关也可能无关，请根据用户提问自行判断是否围绕这些单品做搭配）：\n${outfitContext}`
@@ -424,7 +430,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { message, currentOutfit, weatherSummary: wxSummary, wardrobeItems, gender, bodyType, styleTags, outfitContext } = body as {
+    const { message, currentOutfit, weatherSummary: wxSummary, wardrobeItems, gender, bodyType, styleTags, outfitContext, selectedItemsDetail } = body as {
       message: string
       currentOutfit?: OutfitSlot
       weatherSummary?: string | null
@@ -433,6 +439,7 @@ export async function POST(request: NextRequest) {
       bodyType?: string | null
       styleTags?: string[]
       outfitContext?: string | null
+      selectedItemsDetail?: string | null
     }
 
     if (!message || message.trim().length === 0) {
@@ -442,7 +449,7 @@ export async function POST(request: NextRequest) {
     const outfit = currentOutfit || EMPTY_OUTFIT
     const filledSlots = Object.entries(outfit).filter(([, v]) => v).length
     console.log(`[chat] request: ${filledSlots} outfit slots, message len=${message.length}, wardrobe=${(wardrobeItems || []).length}, weather=${!!wxSummary}`)
-    const { content, rounds, plans } = await agentLoop(message.trim(), outfit, wxSummary || null, wardrobeItems || [], gender, bodyType, styleTags, outfitContext)
+    const { content, rounds, plans } = await agentLoop(message.trim(), outfit, wxSummary || null, wardrobeItems || [], gender, bodyType, styleTags, outfitContext, selectedItemsDetail || null)
     console.log(`[chat] AI (${rounds} rounds):`, content.slice(0, 120))
 
     return NextResponse.json({ content, rounds, plans })

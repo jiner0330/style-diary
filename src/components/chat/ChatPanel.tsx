@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { getItemById } from "@/lib/mock-data"
 import { getAuthToken, supabase } from "@/lib/supabase"
 import { stripJSONFromText } from "@/lib/strip-json"
 import { useOutfitStore } from "@/store/outfit"
 import type { OutfitState, AIOutfitPlan, AIOutfitItem, ClothingItem } from "@/types"
+import WardrobePicker from "./WardrobePicker"
 
 export interface ChatMessage {
   role: "user" | "assistant"
@@ -116,6 +117,33 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // 衣橱选择器
+  const [wardrobeItems, setWardrobeItems] = useState<ClothingItem[]>([])
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
+  const [showPicker, setShowPicker] = useState(false)
+
+  const fetchWardrobe = useCallback(async () => {
+    try {
+      const { data } = await supabase.from("clothing_items").select("*")
+      setWardrobeItems((data as ClothingItem[]) || [])
+    } catch {}
+  }, [])
+
+  useEffect(() => { fetchWardrobe() }, [fetchWardrobe])
+
+  function toggleItem(id: string) {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function getSelectedItems(): ClothingItem[] {
+    return wardrobeItems.filter((i) => selectedItemIds.has(i.id))
+  }
+
   // 本地消息状态 + localStorage 持久化
   const [messages, setMessages] = useState<ChatMessage[]>([])
   useEffect(() => {
@@ -216,6 +244,9 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
     const userMsg: ChatMessage = { role: "user", content: text.trim() }
     addMessage(userMsg)
     setInput("")
+    // 提交选中的单品后清空
+    const currentSelected = new Set(selectedItemIds)
+    if (currentSelected.size > 0) setSelectedItemIds(new Set())
     setLoading(true)
 
     const stageTimer = setInterval(() => {
@@ -254,7 +285,13 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       }
-      const reqBody = JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, outfitContext: outfitDesc, weatherSummary, wardrobeItems, gender, bodyType, styleTags })
+      // 用户选中的单品详情
+      const selectedItems = getSelectedItems()
+      const selectedItemsDetail = selectedItems.length > 0
+        ? selectedItems.map((i) => `${i.name}（${i.category}，${i.sub_category || ""}，${i.color}，${i.material || ""}，${i.detail || ""}）`).join("；")
+        : null
+
+      const reqBody = JSON.stringify({ message: text.trim(), currentOutfit: outfitForAPI, outfitContext: outfitDesc, weatherSummary, wardrobeItems, gender, bodyType, styleTags, selectedItemsDetail })
 
       // 跨境长请求偶发网络层中断（WebKit "Load failed"），透明重试一次
       let data: any = null
@@ -453,8 +490,32 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
             ))}
           </div>
 
+          {/* 已选单品标签 */}
+          {selectedItemIds.size > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {getSelectedItems().map((item) => (
+                <span
+                  key={item.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose/10 text-rose text-[10px]"
+                >
+                  {item.name}
+                  <button onClick={() => toggleItem(item.id)} className="ml-0.5 hover:text-rose/70">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* 输入区 */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPicker(true)}
+              disabled={loading}
+              className="flex-shrink-0 w-10 h-10 rounded-xl bg-cream/80 text-warm-gray/60 hover:bg-rose/10 hover:text-rose
+                         flex items-center justify-center text-lg transition-colors disabled:opacity-50"
+              title="选择衣橱单品"
+            >
+              +
+            </button>
             <input
               ref={inputRef}
               type="text"
@@ -468,7 +529,7 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
             />
             <button
               onClick={() => sendMessage(input)}
-              disabled={loading || !input.trim()}
+              disabled={loading || (!input.trim() && selectedItemIds.size === 0)}
               className="px-4 py-2.5 rounded-xl bg-charcoal text-soft-white text-sm font-medium
                          hover:bg-charcoal/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -477,6 +538,17 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
           </div>
         </div>
       </div>
+
+      {/* 衣橱单品选择器 */}
+      {showPicker && (
+        <WardrobePicker
+          items={wardrobeItems}
+          selected={selectedItemIds}
+          onToggle={toggleItem}
+          onClose={() => setShowPicker(false)}
+          onConfirm={() => setShowPicker(false)}
+        />
+      )}
 
       {/* 底部安全区 */}
       <div className="h-2 flex-shrink-0" />
