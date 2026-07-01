@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v3"
+const PROMPT_VERSION = "v4"
 
 interface OutfitItem {
   slot: string
@@ -654,6 +654,65 @@ async function runGeneration(prompt: string): Promise<string> {
   }
 }
 
+async function downloadImageBuffer(url: string): Promise<Buffer> {
+  // Handle data URLs
+  if (url.startsWith("data:")) {
+    const b64 = url.split(",")[1]
+    if (!b64) throw new Error("Invalid data URL")
+    return Buffer.from(b64, "base64")
+  }
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Failed to download image: ${res.status}`)
+  const arrayBuffer = await res.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
+async function runEdit(prompt: string, imageUrls: string[]): Promise<string> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 55_000)
+
+  try {
+    // Download all reference images
+    const imageBuffers = await Promise.all(imageUrls.map((url) => downloadImageBuffer(url)))
+    console.log(`[generate-outfit] downloaded ${imageBuffers.length} reference images (${(imageBuffers.reduce((s, b) => s + b.length, 0) / 1024).toFixed(0)}KB total)`)
+
+    // Build multipart/form-data
+    const form = new FormData()
+    form.append("model", MODEL)
+    form.append("prompt", prompt)
+    form.append("quality", "standard")
+    form.append("n", "1")
+    form.append("size", "768x1152")
+    form.append("response_format", "b64_json")
+    for (const buf of imageBuffers) {
+      form.append("image", new Blob([new Uint8Array(buf)], { type: "image/jpeg" }))
+    }
+
+    const res = await fetch(`${OFOXAI_BASE}/v1/images/edits`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OFOXAI_KEY}`,
+      },
+      body: form,
+      signal: ctrl.signal,
+      agent: new https.Agent({ rejectUnauthorized: false }),
+    } as any)
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "")
+      throw new Error(`Image edit failed: ${res.status} ${errText.slice(0, 200)}`)
+    }
+
+    const data = await res.json()
+    const b64 = data.data?.[0]?.b64_json
+    if (!b64) throw new Error("No image data returned from edit")
+
+    return b64
+  } finally {
+    clearTimeout(t)
+  }
+}
+
 function getToken(request: NextRequest): string | null {
   const auth = request.headers.get("authorization")
   return auth?.startsWith("Bearer ") ? auth.slice(7) : null
@@ -662,7 +721,7 @@ function getToken(request: NextRequest): string | null {
 // 搭配指纹：把影响出图的属性拼成确定性字符串再哈希成短 key（同搭配 → 同 key）
 function outfitFingerprint(items: OutfitItem[], angleIndex: number): string {
   const sig = items
-    .map((i) => [i.name, i.color, i.material ?? "", i.sub_category ?? "", i.fit ?? "", i.length ?? "", i.neckline ?? "", i.detail ?? "", i.pattern ?? ""].join("|"))
+    .map((i) => [i.name, i.color, i.material ?? "", i.sub_category ?? "", i.fit ?? "", i.length ?? "", i.neckline ?? "", i.detail ?? "", i.pattern ?? "", i.image_url ?? ""].join("|"))
     .sort().join("||")
   const hash = Array.from(`${PROMPT_VERSION}|${sig}|${angleIndex}`)
     .reduce((s, c) => ((s << 5) - s + c.charCodeAt(0)) | 0, 0)
@@ -722,7 +781,19 @@ export async function POST(request: NextRequest) {
 
     // 未命中：生成
     const t0 = Date.now()
-    const b64 = await runGeneration(prompt)
+    const useEdit = hasUserItem(items)
+    console.log(`[generate-outfit] cache miss, mode=${useEdit ? "edit" : "gen"}, items=${items.length}`)
+
+    let b64: string
+    if (useEdit) {
+      const refUrls = items
+        .filter((i) => !!i.image_url && !i.image_url.startsWith("/"))
+        .map((i) => i.image_url!)
+      console.log(`[generate-outfit] edit with ${refUrls.length} reference images`)
+      b64 = await runEdit(prompt, refUrls)
+    } else {
+      b64 = await runGeneration(prompt)
+    }
     console.log(`[generate-outfit] done in ${Date.now() - t0}ms`)
 
     // 写入缓存，压缩为 JPEG（PNG 太大，768x1152 可达 3-6MB，加载慢）
