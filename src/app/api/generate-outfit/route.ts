@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v8"
+const PROMPT_VERSION = "v9"
 
 interface OutfitItem {
   slot: string
@@ -354,17 +354,7 @@ const SLOT_NOUN: Record<string, string> = {
 }
 
 function describeItem(i: OutfitItem): string {
-  // 优先用 gpt-4o 原生英文描述，绕过中文→英文翻译字典
-  if (i.english_description && i.english_description.length >= 20) {
-    let desc = i.english_description
-    // 安全兜底：pattern 翻译后若描述里没提到就追加
-    const patternEn = i.pattern ? (PATTERN_TRANSLATE[i.pattern] || i.pattern) : null
-    if (patternEn && !desc.toLowerCase().includes(patternEn.toLowerCase())) {
-      desc += ` Features a ${patternEn} pattern.`
-    }
-    return desc
-  }
-
+  // 始终先构建结构化描述，确保颜色、版型、图案不丢失
   const color = describeColor(i.color)
   const material = i.material || ""
   const pattern = i.pattern || ""
@@ -387,7 +377,15 @@ function describeItem(i: OutfitItem): string {
     attrs.push(`${patternEn} pattern`)
   }
 
-  return attrs.join(". ") + "."
+  const structured = attrs.join(". ") + "."
+
+  // 如果有 gpt-4o 英文描述，作为补充细节追加（但不替代结构化描述）
+  if (i.english_description && i.english_description.length >= 20) {
+    // 避免重复已覆盖的信息，截取英文描述的后半段或独特细节
+    return `${structured} Additional details: ${i.english_description}`
+  }
+
+  return structured
 }
 
 const SLOT_LABEL: Record<string, string> = {
@@ -806,6 +804,7 @@ export async function POST(request: NextRequest) {
     const safeGender = (gender === "male" ? "male" : "female") as "female" | "male"
     const prompt = buildPrompt(items, angleIndex, safeGender)
     const promptZh = buildPromptZh(items, angleIndex, safeGender)
+    console.log(`[generate-outfit] PROMPT:\n${prompt}`)
 
     // 缓存 key：含用户上传单品 → 按 ownerId 隔离；纯预设 → 全局共享
     const key = outfitFingerprint(items, angleIndex)
