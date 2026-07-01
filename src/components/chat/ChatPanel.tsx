@@ -506,12 +506,12 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
           )}
 
           {/* 输入区 */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setShowPicker(true)}
               disabled={loading}
-              className="flex-shrink-0 w-10 h-10 rounded-xl bg-cream/80 text-warm-gray/60 hover:bg-rose/10 hover:text-rose
-                         flex items-center justify-center text-lg transition-colors disabled:opacity-50"
+              className="flex-shrink-0 w-8 h-8 rounded-lg bg-cream/80 text-warm-gray/60 hover:bg-rose/10 hover:text-rose
+                         flex items-center justify-center text-base transition-colors disabled:opacity-50"
               title="选择衣橱单品"
             >
               +
@@ -530,7 +530,7 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
             <button
               onClick={() => sendMessage(input)}
               disabled={loading || (!input.trim() && selectedItemIds.size === 0)}
-              className="px-4 py-2.5 rounded-xl bg-charcoal text-soft-white text-sm font-medium
+              className="flex-shrink-0 px-3 py-2.5 rounded-xl bg-charcoal text-soft-white text-sm font-medium
                          hover:bg-charcoal/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               发送
