@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v4"
+const PROMPT_VERSION = "v5"
 
 interface OutfitItem {
   slot: string
@@ -795,31 +795,15 @@ export async function POST(request: NextRequest) {
     const cached = await fetch(publicUrl, { method: "HEAD" }).then((r) => r.ok).catch(() => false)
     if (cached) {
       console.log("[generate-outfit] cache hit:", objectPath)
-      return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: hasUserItem(items) ? "image_ref" : "text_only", cached: true })
+      return NextResponse.json({ status: "done", imageUrl: publicUrl, prompt, promptZh, mode: "text_only", cached: true })
     }
 
     // 未命中：生成
     const t0 = Date.now()
-    const useEdit = hasUserItem(items)
-    console.log(`[generate-outfit] cache miss, mode=${useEdit ? "edit" : "gen"}, items=${items.length}`)
+    console.log(`[generate-outfit] cache miss, mode=gen, items=${items.length}`)
 
-    let b64: string
-    let mode = "text_only"
-    if (useEdit) {
-      const refUrls = items
-        .filter((i) => !!i.image_url && !i.image_url.startsWith("/"))
-        .map((i) => i.image_url!)
-      console.log(`[generate-outfit] edit with ${refUrls.length} reference images`)
-      try {
-        b64 = await runEdit(prompt, refUrls)
-        mode = "image_ref"
-      } catch (editErr: any) {
-        console.warn(`[generate-outfit] edit failed, falling back to generation: ${editErr.message}`)
-        b64 = await runGeneration(prompt)
-      }
-    } else {
-      b64 = await runGeneration(prompt)
-    }
+    const b64 = await runGeneration(prompt)
+    const mode = "text_only"
     console.log(`[generate-outfit] done in ${Date.now() - t0}ms`)
 
     // 写入缓存，压缩为 JPEG（PNG 太大，768x1152 可达 3-6MB，加载慢）
