@@ -48,6 +48,9 @@ const SUBCAT_SHAPE: Record<string, string> = {
   puff_sleeve: "square neckline top with voluminous puffy short sleeves gathered into fitted cuffs, cropped waist-length hem",
   off_shoulder_tee: "off-shoulder fitted short-sleeve t-shirt, straight neckline below the shoulders, cap sleeves, slim cropped silhouette",
   tank: "sleeveless V-neck camisole tank top, thin shoulder straps, relaxed fit, lightweight fabric",
+  t_shirt: "short-sleeve crewneck t-shirt, round neckline, straight relaxed fit, clean casual silhouette",
+  polo: "polo shirt with a flat knit collar and short button placket at the chest, short sleeves with ribbed cuffs, straight hem with side slits, smart-casual silhouette",
+  cami: "thin spaghetti strap camisole top, low scoop or V neckline, slim fitted silhouette, lightweight fabric",
 
   // ---- Bottoms ----
   jeans: "straight-leg jeans, mid to high rise, classic five-pocket design, zip fly, straight cut from hip to ankle",
@@ -66,6 +69,11 @@ const SUBCAT_SHAPE: Record<string, string> = {
   pleated_skirt: "pleated skirt, evenly pressed fine pleats from waistband falling straight, structured folds",
 
   // ---- Dresses ----
+  slip_dress: "slim slip dress, thin spaghetti straps, straight silhouette with a slight drape through the body, no waist seam, midi length, lightweight silky fabric",
+  bodycon_dress: "body-hugging bodycon dress, tightly fitted through the bust waist and hips, stretch fabric, often with thin straps or sleeveless, midi or mini length",
+  a_line_dress: "A-line dress, fitted bodice flaring gradually from the waist to the hem in a clean A-shape, feminine silhouette",
+  shirt_dress: "button-front shirt dress with a pointed collar, long sleeves with buttoned cuffs, self-tie belt at the waist, relaxed straight fit through the body",
+  wrap_dress: "wrap dress with a V-neckline, overlapping front panels crossing at the waist and tying at the side seam, flared skirt, feminine silhouette",
   mini: "mini dress, short hemline above the knee, fitted or flared silhouette",
   midi: "midi dress, hemline falling between knee and ankle, feminine silhouette",
   maxi: "maxi dress, full-length hemline to the ankles, flowing or fitted silhouette",
@@ -440,6 +448,9 @@ const SUBCAT_SHAPE_ZH: Record<string, string> = {
   puff_sleeve: "方领泡泡袖短上衣，蓬松灯笼短袖收拢于袖口，短款露腰，肩部细褶",
   off_shoulder_tee: "一字肩修身短款T恤，领口低于肩线",
   tank: "V领吊带背心，细肩带，宽松版型，轻盈面料",
+  t_shirt: "圆领短袖T恤，直身版型，干净利落的休闲廓形",
+  polo: "翻领POLO衫，短纽扣门襟，短袖罗纹袖口，下摆侧开衩，商务休闲廓形",
+  cami: "细肩带吊带背心，低V领紧身版型，轻薄贴身面料",
   jeans: "直筒牛仔裤，中高腰，经典五袋设计",
   trousers: "宽松西裤，高腰，阔腿从臀到脚踝自然垂落，前褶裥",
   skirt: "A字半身裙，腰部贴合自然展开至下摆",
@@ -449,6 +460,11 @@ const SUBCAT_SHAPE_ZH: Record<string, string> = {
   wide_jeans: "高腰阔腿牛仔裤，从臀到脚踝宽松阔腿",
   mermaid_skirt: "鱼尾包臀长裙，臀腿处紧身，膝部以下散开成鱼尾",
   pencil_skirt: "修身包臀裙，直筒紧身从腰到膝，后开衩",
+  slip_dress: "吊带连衣裙，细肩带，直身微弧版型自然垂坠，无腰线分割，轻盈面料",
+  bodycon_dress: "紧身连衣裙，全身紧贴曲线，弹力面料包裹身形，细肩带或短袖，膝上或及膝长度",
+  a_line_dress: "A字连衣裙，上身合体从腰向下逐渐展开，经典A字廓形，优雅大方",
+  shirt_dress: "翻领衬衫裙，前襟纽扣开合，腰部自系带收腰，长袖或短袖带袖口，直身版型",
+  wrap_dress: "裹身连衣裙，V领交叉前片，腰间系带自然收腰，下摆裙摆散开",
   mini: "短款连衣裙，裙长在膝上",
   midi: "中长款连衣裙，裙长在膝与踝之间",
   maxi: "长款连衣裙，裙长至脚踝",
