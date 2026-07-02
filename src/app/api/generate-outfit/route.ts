@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 const MANNEQUIN_BUCKET = "mannequins"
-const PROMPT_VERSION = "v16" // v16: switch to Seedream 4.0 multi-image fusion
+const PROMPT_VERSION = "v17" // v17: seedream fix - 768x1152, retry, better prompt
 
 // ─── Types ───
 interface OutfitItem {
@@ -73,58 +73,73 @@ function buildSeedreamPayload(items: OutfitItem[], angleIndex: number, gender: s
   }
 
   const promptParts = [
-    "保持图1人物的面部、发型、姿态和手绘插画风格完全不变。",
-    "只将图1人物的服装替换为：" + clothingRefs.join("、") + "。",
-    "严格按照参考图中的服装还原，包括图案纹理、面料质感、版型剪裁等所有细节。",
+    "图1是人物基底参考图。将图1人物的服装完整替换为以下服装：",
+    clothingRefs.join("、") + "。",
+    "严格按照每张参考图中的服装还原，包括图案纹理、面料质感、版型剪裁、颜色等所有细节。",
+    "保持图1人物的面部五官、发型、肤色和手绘插画风格完全不变。",
+    "保持图1的构图和人物比例完全不变——全身完整可见，头顶到脚尖都在画面内，不裁切。",
     "奶油纸纹背景，纯白底色，温暖治愈感。",
     angle === "back"
       ? "背面全身视图，不显示面部。不显示任何前襟、纽扣、领口等正面细节。"
-      : "正面全身视图，A字站姿，手臂与身体保持间隙。",
+      : "正面全身视图，A字站姿。",
     "不添加任何配饰、珠宝、眼镜、丝巾、手表、包袋等额外装饰。",
   ]
 
   return { imageUrls, prompt: promptParts.join(" ") }
 }
 
-// ─── Call Seedream 4.0 ───
+// ─── Call Seedream 4.0 (with retry for intermittent Vercel HK → Beijing connectivity) ───
 async function callSeedream(imageUrls: string[], prompt: string): Promise<Buffer> {
   const body = JSON.stringify({
     model: SEEDREAM_MODEL,
     prompt,
     image: imageUrls,
-    size: "2K",
+    size: "768x1152",
     watermark: false,
     response_format: "b64_json",
   })
 
-  console.log(`[seedream] request: ${imageUrls.length} images, prompt_len=${prompt.length}`)
+  console.log(`[seedream] request: ${imageUrls.length} images, size=768x1152, prompt_len=${prompt.length}`)
 
-  const res = await fetch(VOLC_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${VOLCENGINE_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body,
-    signal: AbortSignal.timeout(55_000),
-    agent: new https.Agent({ rejectUnauthorized: false }),
-  } as any)
+  let lastErr: any = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(VOLC_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${VOLCENGINE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body,
+        signal: AbortSignal.timeout(50_000),
+        agent: new https.Agent({
+          rejectUnauthorized: false,
+          keepAlive: true,
+          timeout: 30_000, // connection timeout
+        }),
+      } as any)
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "")
-    throw new Error(`Seedream API error ${res.status}: ${errText.slice(0, 300)}`)
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "")
+        throw new Error(`Seedream API error ${res.status}: ${errText.slice(0, 300)}`)
+      }
+
+      const data = await res.json()
+      const images = data.data
+      if (!images || images.length === 0) {
+        throw new Error("Seedream returned no images")
+      }
+
+      const b64 = images[0].b64_json
+      if (!b64) throw new Error("Seedream response missing b64_json")
+
+      return Buffer.from(b64, "base64")
+    } catch (err: any) {
+      lastErr = err
+      if (attempt === 0) console.warn("[seedream] attempt 1 failed, retrying:", err.message.slice(0, 150))
+    }
   }
-
-  const data = await res.json()
-  const images = data.data
-  if (!images || images.length === 0) {
-    throw new Error("Seedream returned no images")
-  }
-
-  const b64 = images[0].b64_json
-  if (!b64) throw new Error("Seedream response missing b64_json")
-
-  return Buffer.from(b64, "base64")
+  throw lastErr
 }
 
 // ─── Auth helper ───
