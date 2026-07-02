@@ -137,9 +137,9 @@ const SUBCAT_ENUMS: Record<string, string[]> = {
   top: ["sweater", "shirt", "blouse", "cardigan", "hoodie", "henley", "turtleneck", "off_shoulder_corset", "halter", "off_shoulder_ls", "puff_sleeve", "off_shoulder_tee", "sweatshirt", "tank", "t_shirt", "polo", "cami"],
   bottom: ["jeans", "trousers", "skirt", "shorts", "cargo", "chinos", "wide_jeans", "mermaid_skirt", "pencil_skirt", "tiered_tulle_skirt", "a_line_skirt", "pleated_skirt"],
   dress: ["slip_dress", "bodycon_dress", "a_line_dress", "shirt_dress", "wrap_dress", "mini", "midi", "maxi", "off_shoulder_dress", "qipao"],
-  outerwear: ["blazer", "jacket", "trench", "bomber"],
-  shoes: ["sneakers", "heels", "boots", "loafers"],
-  bag: ["tote", "shoulder"],
+  outerwear: ["blazer", "jacket", "trench", "bomber", "cardigan", "shirt_jacket"],
+  shoes: ["sneakers", "heels", "boots", "loafers", "sandals", "flats", "mary_jane"],
+  bag: ["tote", "shoulder", "crossbody", "armpit", "backpack"],
   accessory: ["necklace", "earrings", "scarf", "sunglasses", "belt", "watch"],
 }
 
@@ -201,7 +201,7 @@ export async function classifyClothing(input: string | ArrayBuffer, mimeType = "
 }
 
 category(品类): dress|top|bottom|outerwear|shoes|bag|accessory
-sub_category: top: sweater|shirt|blouse|cardigan|hoodie|henley|turtleneck|off_shoulder_corset|halter|off_shoulder_ls|puff_sleeve|off_shoulder_tee|sweatshirt|tank|t_shirt|polo|cami / bottom: jeans|trousers|skirt|shorts|cargo|chinos|wide_jeans|mermaid_skirt|pencil_skirt|tiered_tulle_skirt|a_line_skirt|pleated_skirt / dress: slip_dress(吊带)|bodycon_dress(紧身)|a_line_dress(A字)|shirt_dress(衬衫裙)|wrap_dress(裹身裙)|mini|midi|maxi|off_shoulder_dress|qipao / outerwear: blazer|jacket|trench|bomber / shoes: sneakers|heels|boots|loafers / bag: tote|shoulder / accessory: necklace|earrings|scarf|sunglasses|belt|watch
+sub_category: top: sweater|shirt|blouse|cardigan|hoodie|henley|turtleneck|off_shoulder_corset|halter|off_shoulder_ls|puff_sleeve|off_shoulder_tee|sweatshirt|tank|t_shirt|polo|cami / bottom: jeans|trousers|skirt|shorts|cargo|chinos|wide_jeans|mermaid_skirt|pencil_skirt|tiered_tulle_skirt|a_line_skirt|pleated_skirt / dress: slip_dress(吊带)|bodycon_dress(紧身)|a_line_dress(A字)|shirt_dress(衬衫裙)|wrap_dress(裹身裙)|mini|midi|maxi|off_shoulder_dress|qipao / outerwear: blazer|jacket|trench|bomber|cardigan(开衫)|shirt_jacket(衬衫外套) / shoes: sneakers|heels|boots|loafers|sandals(凉鞋)|flats(平底)|mary_jane(玛丽珍) / bag: tote|shoulder|crossbody(斜挎)|armpit(腋下)|backpack(双肩) / accessory: necklace|earrings|scarf|sunglasses|belt|watch
 color_name: 如有图案（格纹/条纹/碎花等），选图案的底色或主色，不要选远看混合色。黑白格纹→"黑色"，蓝白条纹→"蓝色"。可选:白色|米白|黑色|深灰|灰色|浅灰|浅蓝|深蓝|藏青|蓝色|牛仔蓝|酒红|红色|粉色|裸粉|豆沙粉|卡其|驼色|棕色|黄色|姜黄|绿色|墨绿|军绿|灰绿|亮绿|翠绿|薄荷绿|浅绿|紫色|橙色
 style_tags仅可选: 简约|法式|甜美|复古|街头|辣妹风|学院|通勤|波西米亚|运动`,
           },
