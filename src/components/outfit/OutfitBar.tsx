@@ -73,12 +73,14 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
       <div className="w-full px-4">
         <p className="text-[11px] text-charcoal/70 mb-2 tracking-wide">搭配清单</p>
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-none">
-          {/* 已填槽位卡片 */}
+          {/* 已填槽位卡片 — 点击可重新选择替换 */}
           {filledSlots.map(({ slot, label, item }) => (
             <div
               key={slot}
+              onClick={() => onAddClick?.(slot)}
               className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl
-                         bg-rose/8 border border-rose/15"
+                         bg-rose/8 border border-rose/15 cursor-pointer
+                         active:bg-rose/15 transition-colors"
             >
               <MiniPreview imageUrl={item?.image_url} color={item?.color} />
               <div className="flex flex-col min-w-0">
@@ -88,7 +90,7 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
                 </span>
               </div>
               <button
-                onClick={() => removeSlot(slot as any)}
+                onClick={(e) => { e.stopPropagation(); removeSlot(slot as any) }}
                 className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full
                            bg-warm-gray/20 text-[10px] text-warm-gray hover:bg-rose/20 hover:text-rose
                            transition-colors flex-shrink-0"
@@ -98,12 +100,14 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
             </div>
           ))}
 
-          {/* 配饰卡片 */}
+          {/* 配饰卡片 — 点击可重新选择替换 */}
           {accessories.map(({ id, item }) => (
             <div
               key={id}
+              onClick={() => onAddClick?.("accessory")}
               className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl
-                         bg-rose/8 border border-rose/15"
+                         bg-rose/8 border border-rose/15 cursor-pointer
+                         active:bg-rose/15 transition-colors"
             >
               <MiniPreview imageUrl={item?.image_url} color={item?.color} />
               <div className="flex flex-col min-w-0">
@@ -113,7 +117,7 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
                 </span>
               </div>
               <button
-                onClick={() => removeSlot("accessories", id)}
+                onClick={(e) => { e.stopPropagation(); removeSlot("accessories", id) }}
                 className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full
                            bg-warm-gray/20 text-[10px] text-warm-gray hover:bg-rose/20 hover:text-rose
                            transition-colors flex-shrink-0"
@@ -143,23 +147,20 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
                 </div>
               </button>
             ))}
-          {/* 配饰空槽位 */}
-          {accessories.length === 0 && (
-            <button
-              onClick={() => onAddClick?.("accessory")}
-              className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl
-                         border border-dashed border-warm-gray/30 hover:border-rose/30
-                         hover:bg-rose/5 transition-colors"
-            >
-              <div className="w-8 h-[14px] flex-shrink-0 rounded-[4px] bg-warm-gray/10" />
-              <div className="flex flex-col min-w-0">
-                <span className="text-[9px] text-charcoal/50 leading-tight">配饰</span>
-                <span className="text-[11px] text-charcoal/50 leading-tight whitespace-nowrap">
-                  点击添加
-                </span>
-              </div>
-            </button>
-          )}
+          {/* 配饰空槽位 — 始终可见，方便添加多个不同类别配饰 */}
+          <button
+            onClick={() => onAddClick?.("accessory")}
+            className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl
+                       border border-dashed border-warm-gray/30 hover:border-rose/30
+                       hover:bg-rose/5 transition-colors"
+          >
+            <div className="w-5 h-5 flex items-center justify-center rounded-full bg-warm-gray/10 text-[10px] text-warm-gray">
+              +
+            </div>
+            <span className="text-[11px] text-charcoal/50 leading-tight whitespace-nowrap">
+              {accessories.length > 0 ? '再加配饰' : '添加配饰'}
+            </span>
+          </button>
         </div>
       </div>
     )
@@ -172,8 +173,10 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
       {filledSlots.map(({ slot, label, item }) => (
         <div
           key={slot}
-          className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl
-                     bg-rose/8 border border-rose/15 group"
+          onClick={() => onAddClick?.(slot)}
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl
+                     bg-rose/8 border border-rose/15 group
+                     ${onAddClick ? 'cursor-pointer' : ''}`}
         >
           <MiniPreview imageUrl={item?.image_url} color={item?.color} />
           <div className="flex flex-col min-w-0 leading-tight">
@@ -183,7 +186,7 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
             </span>
           </div>
           <button
-            onClick={() => removeSlot(slot as any)}
+            onClick={(e) => { e.stopPropagation(); removeSlot(slot as any) }}
             className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full
                        bg-warm-gray/20 text-[10px] text-warm-gray hover:bg-rose/20 hover:text-rose
                        transition-colors flex-shrink-0"
@@ -195,8 +198,10 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
       {accessories.map(({ id, item }) => (
         <div
           key={id}
-          className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl
-                     bg-rose/8 border border-rose/15 group"
+          onClick={() => onAddClick?.("accessory")}
+          className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl
+                     bg-rose/8 border border-rose/15 group
+                     ${onAddClick ? 'cursor-pointer' : ''}`}
         >
           <MiniPreview imageUrl={item?.image_url} color={item?.color} />
           <div className="flex flex-col min-w-0 leading-tight">
@@ -206,7 +211,7 @@ export default function OutfitBar({ compact = false, onAddClick, gender }: Props
             </span>
           </div>
           <button
-            onClick={() => removeSlot("accessories", id)}
+            onClick={(e) => { e.stopPropagation(); removeSlot("accessories", id) }}
             className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full
                        bg-warm-gray/20 text-[10px] text-warm-gray hover:bg-rose/20 hover:text-rose
                        transition-colors flex-shrink-0"
