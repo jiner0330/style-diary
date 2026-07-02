@@ -324,7 +324,10 @@ function DressingContent() {
       const id = currentOutfit[slot]
       if (id && typeof id === "string") {
         const item = getItemById(id) || aiCache[id]
-        if (item) items.push({ slot, name: item.name, color: item.color, category: item.category, material: item.material ?? null, pattern: item.pattern ?? null, sub_category: item.sub_category ?? null, fit: item.fit ?? null, length: item.length ?? null, neckline: item.neckline ?? null, detail: item.detail ?? null, style_tags: item.style_tags ?? null, image_url: item.image_url ?? null })
+        if (item) {
+          console.log(`[collectItems] slot=${slot} id=${id.slice(0,8)} name=${item.name} source=${item.source} pattern="${item.pattern}" fromCache=${!!getItemById(id)} fromAI=${!!(!getItemById(id) && aiCache[id])}`)
+          items.push({ slot, name: item.name, color: item.color, category: item.category, material: item.material ?? null, pattern: item.pattern ?? null, sub_category: item.sub_category ?? null, fit: item.fit ?? null, length: item.length ?? null, neckline: item.neckline ?? null, detail: item.detail ?? null, style_tags: item.style_tags ?? null, image_url: item.image_url ?? null })
+        }
       }
     }
     for (const accId of currentOutfit.accessories) {

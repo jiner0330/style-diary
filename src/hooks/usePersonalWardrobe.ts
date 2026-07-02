@@ -30,7 +30,12 @@ export function usePersonalWardrobe() {
         return
       }
       const data = await res.json()
-      const fetched = data.items || []
+      const fetched: ClothingItem[] = data.items || []
+      // 排查 pattern 字段丢失：检查 API 返回的第一条数据
+      if (fetched.length > 0) {
+        const sample = fetched[0]
+        console.log(`[usePersonalWardrobe] fetched ${fetched.length} items, first: name=${sample.name} pattern="${sample.pattern}" detail="${sample.detail}"`)
+      }
       cachedItems = fetched
       setItems(fetched)
       // 注册到统一查找表

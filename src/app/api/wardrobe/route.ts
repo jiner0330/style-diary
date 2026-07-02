@@ -169,6 +169,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "查询失败" }, { status: 500 })
     }
 
+    // 排查 pattern 字段：打印第一条的 pattern
+    const list = (items || [])
+    if (list.length > 0) console.log(`[wardrobe GET] ${list.length} items, first: name=${list[0].name} pattern="${list[0].pattern}"`)
+
     return NextResponse.json({ items: items || [] })
   } catch (err) {
     console.error("[wardrobe] Error:", err)
