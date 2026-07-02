@@ -7,7 +7,7 @@ import { CATEGORY_LABELS, ACCESSORY_SUBCAT_LABEL, ACCESSORY_SUBCAT_ORDER } from 
 import ClothingCard from "./ClothingCard"
 import type { ClothingCategory, ClothingItem } from "@/types"
 
-const CATEGORIES: ClothingCategory[] = ["top", "bottom", "dress", "outerwear", "shoes", "accessory"]
+const CATEGORIES: ClothingCategory[] = ["top", "bottom", "dress", "outerwear", "shoes", "bag", "accessory"]
 
 interface Props {
   isDrawerOpen?: boolean

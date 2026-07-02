@@ -86,13 +86,10 @@ export const ACCESSORY_SUBCAT_LABEL: Record<string, string> = {
   watch: '手表',
   scarf: '围巾',
   hat: '帽子',
-  tote: '托特包',
-  shoulder: '斜挎包',
 }
 
 export const ACCESSORY_SUBCAT_ORDER = [
   'necklace', 'earrings', 'sunglasses', 'belt', 'watch', 'scarf', 'hat',
-  'tote', 'shoulder',
 ]
 
 // ========== 身体数据区间 ==========
