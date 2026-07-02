@@ -48,6 +48,15 @@ const SLOT_LABEL: Record<string, string> = {
 }
 
 // ─── Build Seedream request ───
+function resolveImageUrl(url: string): string {
+  if (url.startsWith("http")) return url
+  if (url.startsWith("/")) {
+    const base = process.env.NEXT_PUBLIC_SITE_URL || "https://dada-ai.cn"
+    return `${base}${url}`
+  }
+  return url
+}
+
 function buildSeedreamPayload(items: OutfitItem[], angleIndex: number, gender: string) {
   const angle = ANGLE_MAP[angleIndex] || "front"
   const mannequinUrl = getMannequinUrl(gender, angleIndex)
@@ -60,8 +69,8 @@ function buildSeedreamPayload(items: OutfitItem[], angleIndex: number, gender: s
   for (const item of items) {
     if (item.slot === "accessories") continue // skip accessories (not supported by try-on)
     const label = SLOT_LABEL[item.slot] || item.slot
-    if (item.image_url && item.image_url.startsWith("http")) {
-      imageUrls.push(item.image_url)
+    if (item.image_url) {
+      imageUrls.push(resolveImageUrl(item.image_url))
       clothingRefs.push(`图${imgIdx}的${label}`)
       imgIdx++
     } else {
