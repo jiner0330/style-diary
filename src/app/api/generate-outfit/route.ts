@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import https from "https"
+import { Agent } from "undici"
 import { createClient } from "@supabase/supabase-js"
 import sharp from "sharp"
 
@@ -13,6 +13,11 @@ const SEEDREAM_MODEL = "doubao-seedream-4-0-250828"
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
+
+const undiciAgent = new Agent({
+  connectTimeout: 30_000,
+  connect: { rejectUnauthorized: false },
+})
 const MANNEQUIN_BUCKET = "mannequins"
 const PROMPT_VERSION = "v17" // v17: seedream fix - 768x1152, retry, better prompt
 
@@ -121,11 +126,7 @@ async function callSeedream(imageUrls: string[], prompt: string): Promise<Buffer
         },
         body,
         signal: AbortSignal.timeout(50_000),
-        agent: new https.Agent({
-          rejectUnauthorized: false,
-          keepAlive: true,
-          timeout: 30_000, // connection timeout
-        }),
+        dispatcher: undiciAgent,
       } as any)
 
       if (!res.ok) {
