@@ -94,7 +94,7 @@ async function callSeedream(imageUrls: string[], prompt: string): Promise<Buffer
     model: SEEDREAM_MODEL,
     prompt,
     image: imageUrls,
-    size: "768x1152",
+    size: "1280x1920",
     watermark: false,
     response_format: "b64_json",
   })
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
 
     // Log received items
     for (const it of items) {
-      console.log(`[generate-outfit] received: slot=${it.slot} name=${it.name} image_url=${it.image_url ? "yes" : "no"}`)
+      console.log(`[generate-outfit] received: slot=${it.slot} name=${it.name} image_url=${it.image_url ? it.image_url.slice(0, 80) : "no"}`)
     }
 
     // ─── Cache check ───
