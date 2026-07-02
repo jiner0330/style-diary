@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v14"
+const PROMPT_VERSION = "v15"
 
 interface OutfitItem {
   slot: string
@@ -372,14 +372,28 @@ function describeItem(i: OutfitItem): string {
 
   const material = en(i.material, MATERIAL_TEXTURE)
   const pattern = en(i.pattern, PATTERN_TRANSLATE)
-  console.log(`[describeItem] slot=${i.slot} name=${i.name} rawPattern="${i.pattern}" translated="${pattern}"`)
-  const detail = translateDetail(i.detail || "")
+  console.log(`[describeItem] slot=${i.slot} name=${i.name} sub_category="${i.sub_category}" rawPattern="${i.pattern}" translated="${pattern}"`)
+
+  // Strip structured-field content from detail before translation to avoid
+  // duplicate/garbled output (e.g. detail="纯棉面料，微修身版型" when material & fit are already set)
+  let cleanDetail = i.detail || ""
+  if (cleanDetail && /[\u4e00-\u9fff]/.test(cleanDetail)) {
+    // Remove terms already covered by structured fields
+    if (i.pattern) cleanDetail = cleanDetail.replace(/[，,、]?\s*(简约)?无?图案/g, "")
+    if (i.fit) cleanDetail = cleanDetail.replace(/[，,、]?\s*微?(修身|紧身|宽松|合身|慵懒)版型/g, "")
+    if (i.material) cleanDetail = cleanDetail.replace(/[，,、]?\s*(纯棉|棉|真丝|丝绸|雪纺|亚麻|牛仔|针织|羊毛|皮革|蕾丝|毛呢|聚酯|尼龙|帆布|氨纶|薄纱|混纺|缎面|醋酸|麂皮|天丝|棉\+氨纶)面料/g, "")
+    if (i.neckline) cleanDetail = cleanDetail.replace(/[，,、]?\s*(圆领|V领|方领|高领|一字肩|一字领|挂脖|小圆领|立领|翻领|无领|吊带)/g, "")
+    cleanDetail = cleanDetail.replace(/^[，,、\s]+|[，,、\s]+$/g, "").trim()
+  }
+  const detail = translateDetail(cleanDetail)
 
   // Slot-aware: only apply fit/neckline/length to clothing slots
   const isClothing = (s: string) => ["top", "bottom", "dress", "outerwear"].includes(s)
   const hasNeckline = (s: string) => ["top", "dress"].includes(s)
-  const fitHint = isClothing(i.slot) ? en(i.fit, FIT_MAP) : ""
-  const necklineHint = hasNeckline(i.slot) ? en(i.neckline, NECKLINE_MAP) : ""
+  // When SUBCAT_SHAPE provides a detailed description, it already covers fit & neckline —
+  // appending them again creates contradictions (e.g. shape "V-neck, relaxed fit" + field "round crew neckline, slim fit")
+  const fitHint = (isClothing(i.slot) && !shape) ? en(i.fit, FIT_MAP) : ""
+  const necklineHint = (hasNeckline(i.slot) && !shape) ? en(i.neckline, NECKLINE_MAP) : ""
   const lengthHint = isClothing(i.slot)
     ? en(i.length, LENGTH_MAP[i.slot] || LENGTH_MAP.default)
     : ""
@@ -396,7 +410,8 @@ function describeItem(i: OutfitItem): string {
   if (fitHint) attrs.push(fitHint)
   if (necklineHint) attrs.push(necklineHint)
   if (lengthHint) attrs.push(lengthHint)
-  if (detail) attrs.push(detail)
+  // Only include detail if it adds meaningful content (skip garbled word-for-word translation leftovers)
+  if (detail && detail.length > 15) attrs.push(detail)
 
   return attrs.join(". ") + "."
 }
@@ -809,9 +824,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { items, gender } = body as { gender?: string; items: OutfitItem[]; angleIndex?: number }
 
-    // 排查 pattern 字段：打印每个 item 的关键字段
+    // 排查分类/字段：打印关键字段
     for (const it of items) {
-      console.log(`[generate-outfit] received: slot=${it.slot} name=${it.name} pattern="${it.pattern}" detail="${it.detail}"`)
+      console.log(`[generate-outfit] received: slot=${it.slot} name=${it.name} sub_category="${it.sub_category}" pattern="${it.pattern}" fit="${it.fit}" neckline="${it.neckline}" detail="${it.detail}"`)
     }
 
     if (!items || items.length === 0) {
