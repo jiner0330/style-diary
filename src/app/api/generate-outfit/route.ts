@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Agent } from "undici"
+import { Agent } from "node:undici"
 import { createClient } from "@supabase/supabase-js"
 import sharp from "sharp"
 
