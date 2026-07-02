@@ -6,7 +6,7 @@ import { DndContext } from "@dnd-kit/core"
 import { supabase, getAuthToken } from "@/lib/supabase"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
-import { getCachedWardrobeItem } from "@/hooks/usePersonalWardrobe"
+import { getCachedWardrobeItem, getCachedWardrobeItems } from "@/hooks/usePersonalWardrobe"
 import { enrichScene } from "@/lib/scene-assets"
 import { track } from "@/lib/analytics"
 import WardrobePanel from "@/components/wardrobe/WardrobePanel"
@@ -325,9 +325,16 @@ function DressingContent() {
       const id = currentOutfit[slot]
       if (id && typeof id === "string") {
         // 优先从模块级缓存取（API 直返数据），其次 personalItemCache，最后 AI 缓存
-        const item = getCachedWardrobeItem(id) || getItemById(id) || aiCache[id]
+        let item = getCachedWardrobeItem(id) || getItemById(id) || aiCache[id]
+        // AI 缓存的单品缺少 pattern/material 等结构化字段，按 name 匹配衣橱真实数据补全
+        if (item && item.source === "ai_recommended") {
+          const wardrobeMatch = getCachedWardrobeItems().find((w) => w.name === item!.name)
+          if (wardrobeMatch) {
+            item = { ...item, pattern: wardrobeMatch.pattern, material: wardrobeMatch.material, fit: wardrobeMatch.fit, length: wardrobeMatch.length, neckline: wardrobeMatch.neckline }
+          }
+        }
         if (item) {
-          console.log(`[collectItems] slot=${slot} id=${id.slice(0,8)} name=${item.name} pattern="${item.pattern}" fromModuleCache=${!!getCachedWardrobeItem(id)}`)
+          console.log(`[collectItems] slot=${slot} id=${id.slice(0,8)} name=${item.name} pattern="${item.pattern}" source=${item.source}`)
           items.push({ slot, name: item.name, color: item.color, category: item.category, material: item.material ?? null, pattern: item.pattern ?? null, sub_category: item.sub_category ?? null, fit: item.fit ?? null, length: item.length ?? null, neckline: item.neckline ?? null, detail: item.detail ?? null, style_tags: item.style_tags ?? null, image_url: item.image_url ?? null })
         }
       }

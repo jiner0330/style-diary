@@ -14,6 +14,11 @@ export function getCachedWardrobeItem(id: string): ClothingItem | undefined {
   return cachedItems?.find((i) => i.id === id)
 }
 
+/** 获取模块级缓存的全部衣橱单品 */
+export function getCachedWardrobeItems(): ClothingItem[] {
+  return cachedItems || []
+}
+
 export function usePersonalWardrobe() {
   const [items, setItems] = useState<ClothingItem[]>(cachedItems || [])
   const [loading, setLoading] = useState(!cachedItems)
