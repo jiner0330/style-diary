@@ -246,6 +246,28 @@ ESA（阿里云边缘安全加速）已部署在 Vercel 前方，承接 `dada-ai
 - `fc-functions/verify-sms/` — 验证码校验 + Supabase 用户创建（阿里云 FC）
 - 部署方式：本地 `npm install --production` 后打包 zip，上传到阿里云 FC
 
+## `https.Agent` timeout 不控制连接超时
+
+`new https.Agent({ timeout: 30_000 })` 的 `timeout` 是 **socket 空闲超时**（已建立连接后多久没数据就断开），不是 TCP 握手超时。TCP 连接建立超时由 undici（Node.js 内置 HTTP 客户端）控制，默认 10s。从 Vercel HK 访问国内服务（火山方舟等）TCP 握手可能超过 10s。
+
+**正确做法**：用 undici 原生 `Agent` + `connectTimeout`：
+
+```ts
+import { Agent } from "undici"
+
+const agent = new Agent({
+  connectTimeout: 30_000,  // ← 这才是 TCP 连接超时
+  connect: { rejectUnauthorized: false },
+})
+
+await fetch(url, { dispatcher: agent } as any)
+```
+
+需要 `npm install undici`（即使 Node.js 内置，也要装 npm 包提供 TypeScript 类型），并在 `next.config.ts` 加 `serverExternalPackages: ["undici"]`。
+
+**判别**：日志出现 `ConnectTimeoutError: timeout: 10000ms` 且你明明设了 `timeout: 30000` → 就是这个坑。
+
 ## 重要规则
 
 - **不要自行切换 API**：遇到 API 端点报错（如 404、400）时，先分析清楚兼容性和影响范围，确认变更是否会影响其他已有功能模块。向用户说明分析结论，得到确认回复后再执行修改。禁止未经确认直接替换 API 端点或模型。
+- **换 AI 模型 ≠ 换 model 参数**：不同模型的输入范式可能完全不同（文本生图 vs 多图融合 vs 图生图）。切换前先搞清楚：模型吃什么输入？文字？图片？几张？什么格式？这会颠覆上游整条 pipeline，不只是改一行 model 名。
