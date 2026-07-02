@@ -21,15 +21,15 @@ interface OutfitItem {
   name: string
   color: string
   category: string
-  material?: string
-  pattern?: string
-  sub_category?: string
-  fit?: string
-  length?: string
-  neckline?: string
-  detail?: string
-  style_tags?: string[]
-  image_url?: string
+  material?: string | null
+  pattern?: string | null
+  sub_category?: string | null
+  fit?: string | null
+  length?: string | null
+  neckline?: string | null
+  detail?: string | null
+  style_tags?: string[] | null
+  image_url?: string | null
 }
 
 // Rich silhouette descriptions — each entry captures the key visual features
