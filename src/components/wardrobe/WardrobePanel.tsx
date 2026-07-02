@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemsByCategory } from "@/lib/mock-data"
-import { CATEGORY_LABELS } from "@/lib/utils"
+import { CATEGORY_LABELS, ACCESSORY_SUBCAT_LABEL, ACCESSORY_SUBCAT_ORDER } from "@/lib/utils"
 import ClothingCard from "./ClothingCard"
 import type { ClothingCategory, ClothingItem } from "@/types"
 
@@ -48,6 +48,26 @@ export default function WardrobePanel({ isDrawerOpen, onClose, pendingCategory, 
   }
 
   const systemItems = itemsByCategory[activeTab] || []
+
+  // 配饰按 sub_category 分组
+  const groupedAccessories = useMemo(() => {
+    if (activeTab !== 'accessory') return null
+    const groups: Record<string, ClothingItem[]> = {}
+    for (const item of systemItems) {
+      const subCat = item.sub_category || 'other'
+      if (!groups[subCat]) groups[subCat] = []
+      groups[subCat].push(item)
+    }
+    // 按 ACCESSORY_SUBCAT_ORDER 排序
+    const ordered: [string, ClothingItem[]][] = []
+    for (const key of ACCESSORY_SUBCAT_ORDER) {
+      if (groups[key]) ordered.push([key, groups[key]])
+    }
+    for (const [key, items] of Object.entries(groups)) {
+      if (!ACCESSORY_SUBCAT_ORDER.includes(key)) ordered.push([key, items])
+    }
+    return ordered
+  }, [activeTab, systemItems])
 
   const content = (
     <div className="h-full flex flex-col">
@@ -109,6 +129,28 @@ export default function WardrobePanel({ isDrawerOpen, onClose, pendingCategory, 
             <p className="text-xs text-warm-gray/50 leading-relaxed max-w-[200px]">
               拍照上传你的衣服到「我的衣橱」，搭搭帮你搭配
             </p>
+          </div>
+        ) : groupedAccessories ? (
+          // 配饰：按 sub_category 分组
+          <div className="flex flex-col gap-3">
+            {groupedAccessories.map(([subCat, items]) => (
+              <div key={subCat}>
+                <p className="text-[10px] text-charcoal/50 px-1 mb-1">
+                  {ACCESSORY_SUBCAT_LABEL[subCat] || subCat}
+                </p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {items.map((item) => (
+                    <ClothingCard
+                      key={item.id}
+                      item={item}
+                      isEquipped={isEquipped(item.id)}
+                      clickToAdd={!!pendingCategory}
+                      onQuickAdd={onItemClick}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
         <div className="grid grid-cols-3 gap-1.5">

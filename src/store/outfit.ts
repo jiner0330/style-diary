@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { OutfitState, ClothingItem, AIOutfitPlan, SavedInspiration } from '@/types'
+import { getItemById } from '@/lib/mock-data'
 
 type SingleSlot = 'dress' | 'top' | 'bottom' | 'outerwear' | 'shoes' | 'bag'
 
@@ -157,10 +158,22 @@ export const useOutfitStore = create<OutfitStore>((set, get) => ({
   addAccessory: (itemId) => {
     set((state) => {
       const prevState = { ...state.outfit }
+      const item = getItemById(itemId) || state.aiItemsCache[itemId]
+      const subCat = item?.sub_category
+
+      // 同 sub_category 替换，不同 sub_category 共存
+      let newAccessories = state.outfit.accessories
+      if (subCat) {
+        newAccessories = newAccessories.filter((id) => {
+          const existing = getItemById(id) || state.aiItemsCache[id]
+          return existing?.sub_category !== subCat
+        })
+      }
+
       return {
         outfit: {
           ...state.outfit,
-          accessories: [...state.outfit.accessories, itemId],
+          accessories: [...newAccessories, itemId],
         },
         history: [...state.history, prevState].slice(-20),
       }

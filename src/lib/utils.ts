@@ -77,6 +77,24 @@ export const CATEGORY_LABELS: Record<string, string> = {
   accessory: '配饰',
 }
 
+// 配饰子品类标签 & 排序
+export const ACCESSORY_SUBCAT_LABEL: Record<string, string> = {
+  necklace: '项链',
+  earrings: '耳饰',
+  sunglasses: '眼镜',
+  belt: '腰带',
+  watch: '手表',
+  scarf: '围巾',
+  hat: '帽子',
+  tote: '托特包',
+  shoulder: '斜挎包',
+}
+
+export const ACCESSORY_SUBCAT_ORDER = [
+  'necklace', 'earrings', 'sunglasses', 'belt', 'watch', 'scarf', 'hat',
+  'tote', 'shoulder',
+]
+
 // ========== 身体数据区间 ==========
 export const HEIGHT_RANGES_FEMALE = [
   '150cm 以下', '150-155cm', '155-160cm', '160-165cm',
