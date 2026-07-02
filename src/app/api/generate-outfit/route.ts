@@ -50,6 +50,7 @@ function getMannequinUrl(gender: string, angleIndex: number): string {
 const SLOT_LABEL: Record<string, string> = {
   dress: "连衣裙", top: "上衣", bottom: "下装",
   outerwear: "外套", shoes: "鞋子", bag: "包",
+  accessories: "配饰",
 }
 
 // ─── Build Seedream request ───
@@ -72,7 +73,7 @@ function buildSeedreamPayload(items: OutfitItem[], angleIndex: number, gender: s
   let imgIdx = 2 // image 1 = mannequin base
 
   for (const item of items) {
-    if (item.slot === "accessories") continue // skip accessories (not supported by try-on)
+    if (item.slot === "accessories" && !item.image_url) continue // skip text-only accessories
     const label = SLOT_LABEL[item.slot] || item.slot
     if (item.image_url) {
       imageUrls.push(resolveImageUrl(item.image_url))
@@ -96,7 +97,7 @@ function buildSeedreamPayload(items: OutfitItem[], angleIndex: number, gender: s
     angle === "back"
       ? "背面全身视图，不显示面部。不显示任何前襟、纽扣、领口等正面细节。"
       : "正面全身视图，A字站姿。",
-    "不添加任何配饰、珠宝、眼镜、丝巾、手表、包袋等额外装饰。",
+    "如果有配饰参考图（眼镜、手表、项链等），保持其款式和位置还原到图1人物对应位置。",
   ]
 
   return { imageUrls, prompt: promptParts.join(" ") }
