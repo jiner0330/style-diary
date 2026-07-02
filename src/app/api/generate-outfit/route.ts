@@ -809,6 +809,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { items, gender } = body as { gender?: string; items: OutfitItem[]; angleIndex?: number }
 
+    // 排查 pattern 字段：打印每个 item 的关键字段
+    for (const it of items) {
+      console.log(`[generate-outfit] received: slot=${it.slot} name=${it.name} pattern="${it.pattern}" detail="${it.detail}"`)
+    }
+
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "Please select at least one item" }, { status: 400 })
     }
