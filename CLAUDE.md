@@ -271,3 +271,20 @@ await fetch(url, { dispatcher: agent } as any)
 
 - **不要自行切换 API**：遇到 API 端点报错（如 404、400）时，先分析清楚兼容性和影响范围，确认变更是否会影响其他已有功能模块。向用户说明分析结论，得到确认回复后再执行修改。禁止未经确认直接替换 API 端点或模型。
 - **换 AI 模型 ≠ 换 model 参数**：不同模型的输入范式可能完全不同（文本生图 vs 多图融合 vs 图生图）。切换前先搞清楚：模型吃什么输入？文字？图片？几张？什么格式？这会颠覆上游整条 pipeline，不只是改一行 model 名。
+
+## 图片水印工具
+
+两个脚本，用途不同：
+
+| 脚本 | 场景 | 效果 |
+|------|------|------|
+| `scripts/watermark.js` | 截图/UI 展示 | 浅色满铺斜向水印，防盗图 |
+| `scripts/watermark-social.mjs` | 小红书/社交媒体 | 深灰色粗体，4-5 处斜向分布，不遮挡主体 |
+
+```bash
+# 社交媒体（小红书等）
+node scripts/watermark-social.mjs ~/Desktop/img1.jpg ~/Desktop/img2.jpg
+# 输出: img1-wm.jpg, img2-wm.jpg（同目录）
+```
+
+需要时直接跑，不要重新写。
