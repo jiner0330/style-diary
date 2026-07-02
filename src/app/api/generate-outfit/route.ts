@@ -108,7 +108,7 @@ async function callSeedream(imageUrls: string[], prompt: string): Promise<Buffer
     response_format: "b64_json",
   })
 
-  console.log(`[seedream] request: ${imageUrls.length} images, size=768x1152, prompt_len=${prompt.length}`)
+  console.log(`[seedream] request: ${imageUrls.length} images, size=1280x1920, prompt_len=${prompt.length}`)
 
   let lastErr: any = null
   for (let attempt = 0; attempt < 2; attempt++) {
