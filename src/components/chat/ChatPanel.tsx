@@ -165,6 +165,7 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
   }
 
   const addAIItems = useOutfitStore((s) => s.addAIItems)
+  const lastSelectedIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
@@ -246,6 +247,7 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
     setInput("")
     // 提交选中的单品后清空
     const currentSelected = new Set(selectedItemIds)
+    lastSelectedIdsRef.current = currentSelected
     if (currentSelected.size > 0) setSelectedItemIds(new Set())
     setLoading(true)
 
@@ -334,32 +336,53 @@ export default function ChatPanel({ currentOutfit, onClose, onGenerateOutfit, on
     const clothingItems: ClothingItem[] = []
     const wearItems: { slot: string; itemId: string }[] = []
 
+    const selectedIds = lastSelectedIdsRef.current
+    const selectedItems = wardrobeItems.filter((w) => selectedIds.has(w.id))
+
     for (let i = 0; i < items.length; i++) {
       const ai = items[i]
-      const id = `ai-${i}-${ai.slot}-${ts}`
-      const item: ClothingItem = {
-        id,
-        owner_id: null,
-        name: ai.name,
-        category: ai.category as ClothingItem["category"],
-        sub_category: ai.sub_category,
-        color: ai.color,
-        material: ai.material || null,
-        pattern: ai.pattern || null,
-        fit: (ai.fit as ClothingItem["fit"]) || null,
-        length: (ai.length as ClothingItem["length"]) || null,
-        neckline: (ai.neckline as ClothingItem["neckline"]) || null,
-        detail: ai.detail || null,
-        style_tags: ai.style_tags,
-        image_url: null,
-        layer_order: 0,
-        occupies_full_body: ai.category === "dress",
-        source: "ai_recommended",
-      }
-      clothingItems.push(item)
+      const aiCategory = ai.category
 
-      const slot = ai.slot === "accessories" ? "accessories" : ai.slot
-      wearItems.push({ slot, itemId: id })
+      // 在用户选中的单品中按品类匹配，优先用真实衣橱数据（含 pattern/material/fit 等结构化字段）
+      const sameCategory = selectedItems.filter((s) => s.category === aiCategory)
+      let matchedItem: ClothingItem | undefined
+      if (sameCategory.length === 1) {
+        matchedItem = sameCategory[0]
+      } else if (sameCategory.length > 1) {
+        matchedItem = sameCategory.find(
+          (s) => s.name.includes(ai.name) || ai.name.includes(s.name),
+        )
+      }
+
+      if (matchedItem) {
+        clothingItems.push(matchedItem)
+        const slot = ai.slot === "accessories" ? "accessories" : ai.slot
+        wearItems.push({ slot, itemId: matchedItem.id })
+      } else {
+        const id = `ai-${i}-${ai.slot}-${ts}`
+        const item: ClothingItem = {
+          id,
+          owner_id: null,
+          name: ai.name,
+          category: ai.category as ClothingItem["category"],
+          sub_category: ai.sub_category,
+          color: ai.color,
+          material: ai.material || null,
+          pattern: ai.pattern || null,
+          fit: (ai.fit as ClothingItem["fit"]) || null,
+          length: (ai.length as ClothingItem["length"]) || null,
+          neckline: (ai.neckline as ClothingItem["neckline"]) || null,
+          detail: ai.detail || null,
+          style_tags: ai.style_tags,
+          image_url: null,
+          layer_order: 0,
+          occupies_full_body: ai.category === "dress",
+          source: "ai_recommended",
+        }
+        clothingItems.push(item)
+        const slot = ai.slot === "accessories" ? "accessories" : ai.slot
+        wearItems.push({ slot, itemId: id })
+      }
     }
 
     addAIItems(clothingItems)
