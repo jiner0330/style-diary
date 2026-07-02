@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { getAuthToken } from "@/lib/supabase"
 import { registerPersonalItems, removePersonalItem } from "@/lib/mock-data"
+import { useOutfitStore } from "@/store/outfit"
 import type { ClothingItem } from "@/types"
 
 // 模块级缓存：跨组件挂载保持，避免每次都从 loading 骨架开始
@@ -53,6 +54,9 @@ export function usePersonalWardrobe() {
     removePersonalItem(id)
     cachedItems = cachedItems?.filter((i) => i.id !== id) || null
     setItems((prev) => prev.filter((i) => i.id !== id))
+    // 同步清除 AI 缓存：避免 collectItems 通过 aiCache 捡回已删除的旧数据
+    const { [id]: _, ...rest } = useOutfitStore.getState().aiItemsCache
+    useOutfitStore.setState({ aiItemsCache: rest })
     return true
   }, [])
 
