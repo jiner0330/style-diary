@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const RENDER_BUCKET = "outfit-renders"
 // prompt 逻辑一改就 +1，使旧缓存失效、自动重新生成
-const PROMPT_VERSION = "v13"
+const PROMPT_VERSION = "v14"
 
 interface OutfitItem {
   slot: string
@@ -373,11 +373,16 @@ function describeItem(i: OutfitItem): string {
   const material = en(i.material, MATERIAL_TEXTURE)
   const pattern = en(i.pattern, PATTERN_TRANSLATE)
   console.log(`[describeItem] slot=${i.slot} name=${i.name} rawPattern="${i.pattern}" translated="${pattern}"`)
-  const lengthTable = LENGTH_MAP[i.slot] || LENGTH_MAP.default
-  const lengthHint = en(i.length, lengthTable)
-  const fitHint = en(i.fit, FIT_MAP)
-  const necklineHint = en(i.neckline, NECKLINE_MAP)
   const detail = translateDetail(i.detail || "")
+
+  // Slot-aware: only apply fit/neckline/length to clothing slots
+  const isClothing = (s: string) => ["top", "bottom", "dress", "outerwear"].includes(s)
+  const hasNeckline = (s: string) => ["top", "dress"].includes(s)
+  const fitHint = isClothing(i.slot) ? en(i.fit, FIT_MAP) : ""
+  const necklineHint = hasNeckline(i.slot) ? en(i.neckline, NECKLINE_MAP) : ""
+  const lengthHint = isClothing(i.slot)
+    ? en(i.length, LENGTH_MAP[i.slot] || LENGTH_MAP.default)
+    : ""
 
   const attrs: string[] = []
   // 图案紧贴单品名：避免模型把图案当成独立概念忽略
