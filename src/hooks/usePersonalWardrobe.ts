@@ -9,6 +9,11 @@ import type { ClothingItem } from "@/types"
 // 模块级缓存：跨组件挂载保持，避免每次都从 loading 骨架开始
 let cachedItems: ClothingItem[] | null = null
 
+/** 从模块级缓存查找单品（不依赖 React state，可在任何地方同步调用） */
+export function getCachedWardrobeItem(id: string): ClothingItem | undefined {
+  return cachedItems?.find((i) => i.id === id)
+}
+
 export function usePersonalWardrobe() {
   const [items, setItems] = useState<ClothingItem[]>(cachedItems || [])
   const [loading, setLoading] = useState(!cachedItems)

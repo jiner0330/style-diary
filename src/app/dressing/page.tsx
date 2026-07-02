@@ -6,6 +6,7 @@ import { DndContext } from "@dnd-kit/core"
 import { supabase, getAuthToken } from "@/lib/supabase"
 import { useOutfitStore } from "@/store/outfit"
 import { getItemById } from "@/lib/mock-data"
+import { getCachedWardrobeItem } from "@/hooks/usePersonalWardrobe"
 import { enrichScene } from "@/lib/scene-assets"
 import { track } from "@/lib/analytics"
 import WardrobePanel from "@/components/wardrobe/WardrobePanel"
@@ -323,15 +324,16 @@ function DressingContent() {
     for (const slot of slots) {
       const id = currentOutfit[slot]
       if (id && typeof id === "string") {
-        const item = getItemById(id) || aiCache[id]
+        // 优先从模块级缓存取（API 直返数据），其次 personalItemCache，最后 AI 缓存
+        const item = getCachedWardrobeItem(id) || getItemById(id) || aiCache[id]
         if (item) {
-          console.log(`[collectItems] slot=${slot} id=${id.slice(0,8)} name=${item.name} source=${item.source} pattern="${item.pattern}" fromCache=${!!getItemById(id)} fromAI=${!!(!getItemById(id) && aiCache[id])}`)
+          console.log(`[collectItems] slot=${slot} id=${id.slice(0,8)} name=${item.name} pattern="${item.pattern}" fromModuleCache=${!!getCachedWardrobeItem(id)}`)
           items.push({ slot, name: item.name, color: item.color, category: item.category, material: item.material ?? null, pattern: item.pattern ?? null, sub_category: item.sub_category ?? null, fit: item.fit ?? null, length: item.length ?? null, neckline: item.neckline ?? null, detail: item.detail ?? null, style_tags: item.style_tags ?? null, image_url: item.image_url ?? null })
         }
       }
     }
     for (const accId of currentOutfit.accessories) {
-      const acc = getItemById(accId) || aiCache[accId]
+      const acc = getCachedWardrobeItem(accId) || getItemById(accId) || aiCache[accId]
       if (acc) items.push({ slot: "accessories", name: acc.name, color: acc.color, category: "accessory", material: acc.material ?? null, pattern: acc.pattern ?? null, sub_category: acc.sub_category ?? null, fit: acc.fit ?? null, length: acc.length ?? null, neckline: acc.neckline ?? null, detail: acc.detail ?? null, style_tags: acc.style_tags ?? null, image_url: acc.image_url ?? null })
     }
     return items
