@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { DndContext } from "@dnd-kit/core"
 import { supabase, getAuthToken } from "@/lib/supabase"
 import { useOutfitStore } from "@/store/outfit"
-import { getItemById, getItemsByCategory } from "@/lib/mock-data"
+import { getItemById } from "@/lib/mock-data"
 import { getCachedWardrobeItem, getCachedWardrobeItems } from "@/hooks/usePersonalWardrobe"
 import { enrichScene } from "@/lib/scene-assets"
 import { track } from "@/lib/analytics"
@@ -48,8 +48,6 @@ function DressingContent() {
   const [userGender, setUserGender] = useState<"female" | "male">()
   const [profileLoading, setProfileLoading] = useState(true)
   const [userBodyType, setUserBodyType] = useState<string | null>(null)
-  const [userSkinTone, setUserSkinTone] = useState<string>("neutral")
-  const [userHeightRange, setUserHeightRange] = useState<string>("")
   const [userStyleTags, setUserStyleTags] = useState<string[]>([])
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -233,11 +231,9 @@ function DressingContent() {
         return
       }
       const { data: profile } = await supabase.from("user_profiles")
-        .select("gender, body_type, skin_tone, height_range, style_tags").eq("user_id", user.id).single()
+        .select("gender, body_type, style_tags").eq("user_id", user.id).single()
       setUserGender(profile?.gender || "female")
       if (profile?.body_type) setUserBodyType(profile.body_type)
-      if (profile?.skin_tone) setUserSkinTone(profile.skin_tone)
-      if (profile?.height_range) setUserHeightRange(profile.height_range)
       if (profile?.style_tags) setUserStyleTags(profile.style_tags)
 
       // 跨设备同步：从 Supabase 拉取保存方案，合并到本地
@@ -296,54 +292,6 @@ function DressingContent() {
     setMobileTab(null)
     track("outfit_item_add", { sceneId, properties: { itemId: item.id, category } })
     toast.success(`已添加 ${item.name}`)
-  }
-
-  // 临时：风格分析测试
-  const [analyzing, setAnalyzing] = useState(false)
-  async function testStyleAnalysis() {
-    setAnalyzing(true)
-    try {
-      const allItems = getItemsByCategory(userGender)
-      const items = Object.values(allItems).flat().map((item) => ({
-        name: item.name,
-        category: item.category,
-        sub_category: item.sub_category,
-        color: item.color,
-        color_group: item.color_group,
-        material: item.material,
-        pattern: item.pattern,
-        fit: item.fit,
-        style_tags: item.style_tags,
-      }))
-      const profile = {
-        gender: userGender || "female",
-        body_type: userBodyType || "hourglass",
-        skin_tone: userSkinTone,
-        style_tags: userStyleTags,
-        height_range: userHeightRange || undefined,
-      }
-      const token = await getAuthToken()
-      const res = await fetch("/api/style-analysis", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ profile, items }),
-      })
-      const data = await res.json()
-      console.log("[style-analysis] result:", JSON.stringify(data, null, 2))
-      if (res.ok) {
-        toast.success(`风格人格: ${data.personaLabel}`)
-      } else {
-        toast.error(data.error || "分析失败")
-      }
-    } catch (err: any) {
-      console.error("[style-analysis] error:", err)
-      toast.error(`分析失败: ${err.message}`)
-    } finally {
-      setAnalyzing(false)
-    }
   }
 
   // 计时器：生成中显示耗时 + 阶段切换
@@ -670,14 +618,6 @@ function DressingContent() {
               className="text-[11px] px-3 py-1.5 rounded-full border border-warm-gray/30 text-warm-gray hover:text-rose hover:border-rose/30 transition-colors"
             >
               💾 保存
-            </button>
-            {/* 临时：风格分析测试按钮 */}
-            <button
-              onClick={testStyleAnalysis}
-              disabled={analyzing}
-              className="text-[11px] px-3 py-1.5 rounded-full border border-rose/30 text-rose hover:bg-rose/5 transition-colors disabled:opacity-50"
-            >
-              {analyzing ? "⏳" : "🧪"} 风格分析
             </button>
             {/* 下载（生成记录 + 保存方案） */}
             <div className="relative">
