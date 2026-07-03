@@ -47,7 +47,26 @@ interface UserProfile {
   weatherSummary?: string | null
 }
 
-export function getSystemPrompt(profile?: UserProfile): string {
+export function extractOutfitCount(message: string): number {
+  const digitMap: Record<string, number> = {
+    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+  }
+  const patterns = [
+    /(\d+)\s*(?:套|个?(?:方案|搭配|组合))/,
+    /([一二三四五六七八九十])\s*(?:套|个?(?:方案|搭配|组合))/,
+  ]
+  for (const p of patterns) {
+    const m = message.match(p)
+    if (m) {
+      const n = digitMap[m[1]] ?? parseInt(m[1], 10)
+      if (n >= 1 && n <= 10) return n
+    }
+  }
+  return 2
+}
+
+export function getSystemPrompt(profile?: UserProfile, count: number = 2): string {
   const season = getCurrentSeason()
   const stats = getStats()
 
@@ -78,9 +97,9 @@ export function getSystemPrompt(profile?: UserProfile): string {
 
 1. 分析用户需求：场景、风格偏好、当前季节（${season}）${profile?.weatherSummary ? "。天气数据已提供（见上方），直接使用，无需额外查询" : ""}。用户的身型和性别已知（见上方用户画像），无需推断。如果对话开头有"用户搭配面板参考"信息，说明用户当前搭配面板中有这些单品，仅供参考——根据用户的实际提问自行判断是否围绕这些单品做搭配，不要预设用户意图
 2. **第一轮同时调用** get_rules + get_formulas（所有相关品类一次性并发调用），get_rules 和 get_formulas 必须传入用户画像中的身型和性别。**仅当用户明确要求"用我衣橱/我的衣服来搭"时**，才额外调用 list_items 基于真实单品搭配；否则不要调 list_items
-3. **第二轮直接输出恰好 2 套文字方案**，不要继续调工具。**默认根据知识库规则自由创作**，追求方案多样性，不要被衣橱已有单品局限（除非用户明确要求用自己的衣橱）
+3. **第二轮直接输出恰好 ${count} 套文字方案**，不要继续调工具。**默认根据知识库规则自由创作**，追求方案多样性，不要被衣橱已有单品局限（除非用户明确要求用自己的衣橱）
 4. 每套方案自带预估评分（0-100）
-5. 必须恰好输出 2 套方案，每套方案各一个 JSON code block。开头用"为你搭配了 2 套方案"
+5. 必须恰好输出 ${count} 套方案，每套方案各一个 JSON code block。开头用"为你搭配了 ${count} 套方案"
 
 ## 输出格式
 
@@ -138,7 +157,7 @@ export function getSystemPrompt(profile?: UserProfile): string {
 
 ### 输出示例
 
-为你搭配了 2 套方案：
+为你搭配了 ${count} 套方案：
 
 ### 方案一：干练通勤（预估 88 分）
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { chat, type Message, type ToolDef } from "@/lib/ai"
-import { getSystemPrompt, queryRules, queryFormulas } from "@/lib/matching-rules"
+import { getSystemPrompt, extractOutfitCount, queryRules, queryFormulas } from "@/lib/matching-rules"
 import { stripJSONFromText } from "@/lib/strip-json"
 import { MOCK_CLOTHING } from "@/lib/mock-data"
 
@@ -324,6 +324,7 @@ async function agentLoop(
   currentOutfit: OutfitSlot,
   weatherSummary: string | null,
   wardrobeItems: WardrobeItem[],
+  count: number,
   gender?: "female" | "male",
   bodyType?: string | null,
   styleTags?: string[],
@@ -331,7 +332,7 @@ async function agentLoop(
   selectedItemsDetail?: string | null,
 ): Promise<{ content: string; rounds: number; plans: Record<string, unknown>[] }> {
   const messages: Message[] = [
-    { role: "system", content: getSystemPrompt({ gender, bodyType, styleTags, weatherSummary }) },
+    { role: "system", content: getSystemPrompt({ gender, bodyType, styleTags, weatherSummary }, count) },
   ]
   // 用户通过衣橱选择器明确指定的单品 → 最高优先级，必须围绕这些单品搭配
   if (selectedItemsDetail) {
@@ -375,7 +376,7 @@ async function agentLoop(
       // 追加 user 消息强制引导下一轮输出，防止模型无限调工具或返回空内容
       messages.push({
         role: "user",
-        content: "以上是工具返回的结果，现在请直接输出恰好 2 套搭配方案（不要继续调用工具）。",
+        content: `以上是工具返回的结果，现在请直接输出恰好 ${count} 套搭配方案（不要继续调用工具）。`,
       })
       continue
     }
@@ -449,7 +450,9 @@ export async function POST(request: NextRequest) {
     const outfit = currentOutfit || EMPTY_OUTFIT
     const filledSlots = Object.entries(outfit).filter(([, v]) => v).length
     console.log(`[chat] request: ${filledSlots} outfit slots, message len=${message.length}, wardrobe=${(wardrobeItems || []).length}, weather=${!!wxSummary}`)
-    const { content, rounds, plans } = await agentLoop(message.trim(), outfit, wxSummary || null, wardrobeItems || [], gender, bodyType, styleTags, outfitContext, selectedItemsDetail || null)
+    const count = extractOutfitCount(message)
+    console.log(`[chat] extracted count=${count} from message`)
+    const { content, rounds, plans } = await agentLoop(message.trim(), outfit, wxSummary || null, wardrobeItems || [], count, gender, bodyType, styleTags, outfitContext, selectedItemsDetail || null)
     console.log(`[chat] AI (${rounds} rounds):`, content.slice(0, 120))
 
     return NextResponse.json({ content, rounds, plans })
