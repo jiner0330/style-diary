@@ -65,6 +65,8 @@ function DressingContent() {
 	const [saveDialogOpen, setSaveDialogOpen] = useState(false)
 	const [saveNameValue, setSaveNameValue] = useState("")
 	const saveInputRef = useRef<HTMLInputElement | null>(null)
+	const [guestSaveDialogOpen, setGuestSaveDialogOpen] = useState(false)
+	const guestSavePendingName = useRef("")
 	const panelDragY = useRef(0)
 	const panelStartHeight = useRef<"half" | "full">("half")
   const [resultImages, setResultImages] = useState<Map<number, { url: string; prompt: string; promptZh?: string; mode?: string }>>(new Map())
@@ -117,11 +119,8 @@ function DressingContent() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error(
-          "登录后可保存搭配、解锁更多场景",
-          { duration: 4000 },
-        )
-        setTimeout(() => router.push(`/auth?redirect=${encodeURIComponent("/dressing?id=" + (sceneId || ""))}`), 1500)
+        guestSavePendingName.current = name
+        setGuestSaveDialogOpen(true)
         return
       }
       const slots: Record<string, string | string[] | null> = {
@@ -1177,6 +1176,42 @@ function DressingContent() {
                          hover:bg-charcoal/90 transition-colors"
             >
               保存
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* 游客保存引导：注册 or 换风格 */}
+    {guestSaveDialogOpen && (
+      <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40" onClick={() => setGuestSaveDialogOpen(false)} />
+        <div className="relative bg-soft-white rounded-2xl shadow-xl w-full max-w-xs p-6 z-10 text-center">
+          <p className="text-3xl mb-3">🎉</p>
+          <h3 className="text-sm font-medium text-charcoal mb-1">喜欢这套搭配吗？</h3>
+          <p className="text-xs text-warm-gray/60 mb-5">注册后可随时查看和回顾你的搭配</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setGuestSaveDialogOpen(false)
+                clearAll()
+                setShowResult(false)
+                toast.success("试试换个风格搭配吧～", { duration: 2500 })
+              }}
+              className="flex-1 py-2.5 rounded-xl text-sm text-warm-gray border border-warm-gray/20
+                         hover:bg-warm-gray/5 transition-colors"
+            >
+              换风格再试
+            </button>
+            <button
+              onClick={() => {
+                setGuestSaveDialogOpen(false)
+                router.push(`/auth?redirect=${encodeURIComponent("/dressing?id=" + (sceneId || ""))}`)
+              }}
+              className="flex-1 py-2.5 rounded-xl text-sm text-white bg-rose
+                         hover:bg-rose/90 transition-colors font-medium"
+            >
+              注册保存
             </button>
           </div>
         </div>

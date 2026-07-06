@@ -524,21 +524,7 @@ export default function ResultModal({
               ) : null}
 
               {/* 操作按钮 */}
-              <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() => setShowShare(true)}
-                  className="flex-1 py-2.5 rounded-xl bg-rose text-soft-white text-sm font-medium
-                             active:scale-[0.98] transition-all"
-                >
-                  📤 分享
-                </button>
-                <button
-                  onClick={onClose}
-                  className="flex-1 py-2.5 rounded-xl border border-warm-gray/30 text-charcoal text-sm
-                             hover:bg-soft-white transition-colors active:scale-[0.98]"
-                >
-                  🔄 再搭一套
-                </button>
+              <div className="flex flex-col gap-2 mt-4">
                 <button
                   onClick={() => {
                     if (onSave) {
@@ -552,11 +538,27 @@ export default function ResultModal({
                       }
                     }
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-charcoal text-soft-white text-sm font-medium
-                             hover:bg-charcoal/90 transition-colors active:scale-[0.98]"
+                  className="w-full py-3 rounded-xl bg-charcoal text-soft-white text-sm font-medium
+                             active:scale-[0.98] transition-all shadow-md"
                 >
-                  💾 保存
+                  💾 保存搭配
                 </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowShare(true)}
+                    className="flex-1 py-2.5 rounded-xl border border-rose/30 text-rose text-sm
+                               active:scale-[0.98] transition-all"
+                  >
+                    📤 分享
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="flex-1 py-2.5 rounded-xl border border-warm-gray/30 text-charcoal text-sm
+                               hover:bg-soft-white transition-colors active:scale-[0.98]"
+                  >
+                    🔄 再搭一套
+                  </button>
+                </div>
               </div>
             </div>
           )}
