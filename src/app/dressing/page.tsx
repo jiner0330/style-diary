@@ -41,6 +41,7 @@ const CATEGORY_TO_SLOT: Record<string, string> = {
 }
 
 function DressingContent() {
+  console.log("[pulse] DressingContent render")
   const router = useRouter()
   const searchParams = useSearchParams()
   const sceneId = searchParams.get("id")
