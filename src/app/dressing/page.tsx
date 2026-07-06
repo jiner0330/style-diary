@@ -391,16 +391,18 @@ function DressingContent() {
   // 首次进入：移动端「我的衣橱」tab 脉冲提醒（等页面加载完成后再触发）
   const [pulseWardrobeTab, setPulseWardrobeTab] = useState(false)
   useEffect(() => {
-    if (profileLoading) return
-    try {
-      if (localStorage.getItem("sd-wardrobe-tab-pulsed-v2")) return
-    } catch { /* ignore */ }
+    console.log("[pulse] effect run, profileLoading=", profileLoading)
+    if (profileLoading) { console.log("[pulse] blocked by profileLoading"); return }
+    let lsVal = null
+    try { lsVal = localStorage.getItem("sd-wardrobe-tab-pulsed-v2") } catch (e) { console.log("[pulse] localStorage error", e) }
+    if (lsVal) { console.log("[pulse] blocked by localStorage, key exists"); return }
+    console.log("[pulse] scheduling timer in 800ms")
     const timer = setTimeout(() => {
       setPulseWardrobeTab(true)
       console.log("[pulse] setPulseWardrobeTab(true) fired")
       try { localStorage.setItem("sd-wardrobe-tab-pulsed-v2", "1") } catch {}
     }, 800)
-    return () => clearTimeout(timer)
+    return () => { console.log("[pulse] timer cleaned up"); clearTimeout(timer) }
   }, [profileLoading])
   // 用户添加衣服后取消脉冲
   useEffect(() => {
