@@ -201,8 +201,12 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
     <div className="flex flex-col items-center w-full py-4 md:py-6 md:pb-6">
       <p className="text-[11px] text-charcoal/70 font-medium mb-3 tracking-wide">
         {filledCount > 0
-          ? `已搭配 ${filledCount} 件 ✦ 左右滑动旋转 · 继续拖拽或点击下方卡片替换`
-          : `拖拽单品到人台 ✦ 在人台上左右滑动可旋转`}
+          ? isMobile
+            ? `已搭配 ${filledCount} 件 ✦ 左右滑动旋转 · 继续挑选替换`
+            : `已搭配 ${filledCount} 件 ✦ 左右滑动旋转 · 继续拖拽或点击下方卡片替换`
+          : isMobile
+            ? `点击底部「我的衣橱」挑选衣服 ✦ 左右滑动旋转人台`
+            : `拖拽单品到人台 ✦ 在人台上左右滑动可旋转`}
       </p>
 
       <div

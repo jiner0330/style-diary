@@ -384,6 +384,20 @@ function DressingContent() {
 
   const hasAnyItem = !!outfit.dress || !!outfit.top || !!outfit.bottom || !!outfit.outerwear || !!outfit.shoes || !!outfit.bag || outfit.accessories.length > 0
 
+  // 首次进入：移动端「我的衣橱」tab 脉冲提醒
+  const [pulseWardrobeTab, setPulseWardrobeTab] = useState(false)
+  useEffect(() => {
+    if (profileLoading || hasAnyItem) return
+    try {
+      if (!localStorage.getItem("sd-wardrobe-tab-pulsed")) {
+        setPulseWardrobeTab(true)
+        const timer = setTimeout(() => setPulseWardrobeTab(false), 4000)
+        try { localStorage.setItem("sd-wardrobe-tab-pulsed", "1") } catch {}
+        return () => clearTimeout(timer)
+      }
+    } catch {}
+  }, [profileLoading, hasAnyItem])
+
   // 调用评价 API
   async function evaluateOutfit() {
     setReviewLoading(true)
@@ -810,14 +824,30 @@ function DressingContent() {
             <ModelDisplay gender={userGender || "female"} angleIndex={angleIndex} onAngleChange={setAngleIndex} />
             )}
 
-            {/* 移动端：空态引导提示 */}
+            {/* 移动端：空态步骤引导 */}
             {!hasAnyItem && (
-              <div className="md:hidden text-center py-6 px-4">
-                <p className="text-sm text-charcoal font-medium mb-1">开始搭配</p>
-                <p className="text-xs text-warm-gray/50 leading-relaxed">
-                  点击上方「点击添加」选择衣服<br />
-                  搭配完成后点右下角按钮生成效果图
-                </p>
+              <div className="md:hidden text-center py-4 px-4">
+                <p className="text-xs text-warm-gray/40 tracking-wider mb-3">三步完成搭配</p>
+                <div className="flex items-center justify-center gap-1.5">
+                  {[
+                    { step: "①", label: "挑选衣服" },
+                    { step: "②", label: "点击 ✨" },
+                    { step: "③", label: "查看效果" },
+                  ].map((s, i) => (
+                    <div key={s.step} className="flex items-center gap-1.5">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="w-7 h-7 rounded-full bg-cream flex items-center justify-center
+                                         text-[11px] font-medium text-charcoal/60">
+                          {i + 1}
+                        </span>
+                        <span className="text-[10px] text-warm-gray/50 leading-tight">{s.label}</span>
+                      </div>
+                      {i < 2 && (
+                        <span className="text-warm-gray/20 text-xs mb-3">→</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1063,12 +1093,14 @@ function DressingContent() {
           onClick={() => {
             setShareCloseTrigger(p => p + 1)
             if (mobileTab === "wardrobe") setMobileTab(null)
-            else { setMobileTab("wardrobe"); setMobilePanelHeight("half") }
+            else { setMobileTab("wardrobe"); setMobilePanelHeight("half"); setPulseWardrobeTab(false) }
           }}
           className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-[background-color,color] active:scale-[0.98] ${
             mobileTab === "wardrobe"
               ? "bg-rose text-white"
-              : "bg-cream text-charcoal"
+              : pulseWardrobeTab
+                ? "bg-cream text-charcoal animate-pulse ring-2 ring-rose/30"
+                : "bg-cream text-charcoal"
           }`}
         >
           👤 我的衣橱
