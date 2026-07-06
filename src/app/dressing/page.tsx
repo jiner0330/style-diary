@@ -117,7 +117,11 @@ function DressingContent() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error("请先登录，否则保存记录不会计入场景解锁")
+        toast.error(
+          "登录后可保存搭配、解锁更多场景",
+          { duration: 4000 },
+        )
+        setTimeout(() => router.push(`/auth?redirect=${encodeURIComponent("/dressing?id=" + (sceneId || ""))}`), 1500)
         return
       }
       const slots: Record<string, string | string[] | null> = {
@@ -224,48 +228,51 @@ function DressingContent() {
           track("scene_enter", { sceneId: sceneData.id, properties: { sceneName: sceneData.name } })
         }
       }
-      // 用户画像
+      // 用户画像 + 同步
       const { data: { user } } = await supabase.auth.getUser()
-      // 未登录 → 跳转登录页
-      if (!user) {
-        router.replace(`/auth?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
-        return
-      }
-      const { data: profile } = await supabase.from("user_profiles")
-        .select("gender, body_type, style_tags").eq("user_id", user.id).single()
-      setUserGender(profile?.gender || "female")
-      if (profile?.body_type) setUserBodyType(profile.body_type)
-      if (profile?.style_tags) setUserStyleTags(profile.style_tags)
+      if (user) {
+        const { data: profile } = await supabase.from("user_profiles")
+          .select("gender, body_type, style_tags").eq("user_id", user.id).single()
+        setUserGender(profile?.gender || "female")
+        if (profile?.body_type) setUserBodyType(profile.body_type)
+        if (profile?.style_tags) setUserStyleTags(profile.style_tags)
 
-      // 跨设备同步：从 Supabase 拉取保存方案，合并到本地
-      try {
-        const { data: serverOutfits, error: syncErr } = await supabase
-          .from("outfits")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(30)
-        if (!syncErr && serverOutfits && serverOutfits.length > 0) {
-          const converted = serverOutfits.map((row: any) => ({
-            id: row.id || `sv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            name: row.name || "",
-            outfit: {
-              dress: row.dress || null,
-              top: row.top || null,
-              bottom: row.bottom || null,
-              outerwear: row.outerwear || null,
-              shoes: row.shoes || null,
-              bag: row.bag || null,
-              accessories: Array.isArray(row.accessories) ? row.accessories : [],
-            },
-            sceneId: row.scene_id || null,
-            gender: (row.gender || profile?.gender || "female") as "female" | "male",
-            createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
-          }))
-          mergeOutfits(converted)
+        // 跨设备同步：从 Supabase 拉取保存方案，合并到本地
+        try {
+          const { data: serverOutfits, error: syncErr } = await supabase
+            .from("outfits")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(30)
+          if (!syncErr && serverOutfits && serverOutfits.length > 0) {
+            const converted = serverOutfits.map((row: any) => ({
+              id: row.id || `sv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              name: row.name || "",
+              outfit: {
+                dress: row.dress || null,
+                top: row.top || null,
+                bottom: row.bottom || null,
+                outerwear: row.outerwear || null,
+                shoes: row.shoes || null,
+                bag: row.bag || null,
+                accessories: Array.isArray(row.accessories) ? row.accessories : [],
+              },
+              sceneId: row.scene_id || null,
+              gender: (row.gender || profile?.gender || "female") as "female" | "male",
+              createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+            }))
+            mergeOutfits(converted)
+          }
+        } catch (e) {
+          console.warn("[dressing] 同步服务端方案失败:", e)
         }
-      } catch (e) {
-        console.warn("[dressing] 同步服务端方案失败:", e)
+      } else {
+        // 游客模式：从首页性别选择中读取默认性别
+        try {
+          const guestGender = localStorage.getItem("guest_gender")
+          if (guestGender === "male" || guestGender === "female") setUserGender(guestGender)
+        } catch {}
       }
 
       setProfileLoading(false)
@@ -439,10 +446,39 @@ function DressingContent() {
     return () => clearInterval(interval)
   }, [genTaskId, genStatus])
 
+  // 游客每日生成次数限制（3次/天，localStorage 记录）
+  function checkGuestDailyLimit(): boolean {
+    try {
+      const stored = JSON.parse(localStorage.getItem("guest_gen_count") || "{}")
+      const today = new Date().toISOString().slice(0, 10)
+      if (stored.date !== today) return true
+      return stored.count < 3
+    } catch { return true }
+  }
+  function incrementGuestGenCount() {
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const stored = JSON.parse(localStorage.getItem("guest_gen_count") || "{}")
+      const count = stored.date === today ? stored.count + 1 : 1
+      localStorage.setItem("guest_gen_count", JSON.stringify({ date: today, count }))
+    } catch {}
+  }
+
   // 为指定角度提交生图任务
   async function generateForAngle(angleIdx: number, options?: { skipReview?: boolean }) {
     const items = collectItems()
     if (items.length === 0) { toast.error("请先搭配至少一件单品"); return }
+
+    // 游客每日限制检查
+    const token = await getAuthToken()
+    if (!token && !checkGuestDailyLimit()) {
+      toast.error(
+        "今日免费次数已用完（3次/天），注册后不限次数",
+        { duration: 5000 },
+      )
+      setTimeout(() => router.push("/auth"), 2000)
+      return
+    }
 
     const skipReview = options?.skipReview ?? false
     skipReviewRef.current = skipReview
@@ -467,7 +503,6 @@ function DressingContent() {
     genStartTimeRef.current = Date.now()
     track("generation_start", { sceneId, properties: { angleIndex: apiAngle, itemCount: items.length } })
 
-    const token = await getAuthToken()
     const reqBody = JSON.stringify({ gender: userGender, items, angleIndex: apiAngle })
     let lastErr: any = null
 
@@ -500,6 +535,14 @@ function DressingContent() {
           sceneId,
           gender: resolvedGender,
         })
+        if (!token) {
+          incrementGuestGenCount()
+          const stored = JSON.parse(localStorage.getItem("guest_gen_count") || "{}")
+          const remaining = Math.max(0, 3 - (stored.count || 3))
+          if (remaining <= 1) {
+            toast(`今日免费次数还剩 ${remaining} 次，注册后不限次数`, { icon: "💡", duration: 4000 })
+          }
+        }
         if (!skipReview && !generatedByAI.current && !reviewLoading) evaluateOutfit()
         return
       } catch (err: any) {

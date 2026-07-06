@@ -176,16 +176,13 @@ function hasUserItem(items: OutfitItem[]): boolean {
 // ─── POST /api/generate-outfit ───
 export async function POST(request: NextRequest) {
   const token = getToken(request)
-  if (!token) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 })
-  }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
-  const { data: { user } } = await supabase.auth.getUser(token)
-  if (!user) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 })
+  let userId = "guest"
+  if (token) {
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    })
+    const { data: { user } } = await supabaseAuth.auth.getUser(token)
+    if (user) userId = user.id
   }
 
   try {
@@ -210,7 +207,7 @@ export async function POST(request: NextRequest) {
 
     // ─── Cache check ───
     const key = outfitFingerprint(items, angleIndex, safeGender)
-    const folder = hasUserItem(items) ? `u/${user.id}` : "g"
+    const folder = hasUserItem(items) ? `u/${userId}` : "g"
     const objectPath = `${folder}/${key}.jpg`
     const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     const { data: urlData } = supabaseAnon.storage.from(RENDER_BUCKET).getPublicUrl(objectPath)

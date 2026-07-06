@@ -18,8 +18,8 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "风格日记 - 你的AI造型师",
-  description: "和搭搭一起，为生活的每个重要时刻找到属于你的搭配",
+  title: "搭搭 - 你的私人AI造型师",
+  description: "10秒出搭配，为每个重要时刻找到属于你的穿搭方案",
 }
 
 export default function RootLayout({
