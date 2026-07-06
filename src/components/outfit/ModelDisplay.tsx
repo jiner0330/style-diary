@@ -206,8 +206,8 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
             : `已搭配 ${filledCount} 件 ✦ 左右滑动旋转 · 继续拖拽或点击下方卡片替换`}
         </p>
       ) : (
-        <div className="flex flex-col items-center gap-2 mb-3">
-          <p className="text-[12px] text-charcoal/70 font-medium tracking-wide">
+        <div className="flex flex-col items-center gap-2 mb-3 bg-white/70 backdrop-blur-sm rounded-xl px-4 py-2.5 shadow-sm">
+          <p className="text-[12px] text-charcoal/80 font-medium tracking-wide">
             {isMobile
               ? `点击下方「搭配清单」挑选衣服 ✦ 左右滑动旋转人台`
               : `拖拽单品到人台 ✦ 在人台上左右滑动可旋转`}
@@ -218,13 +218,13 @@ export default function ModelDisplay({ gender, angleIndex: controlledIndex, onAn
               {["挑选衣服", "点击 ✨ 生成", "查看效果"].map((label, i) => (
                 <div key={label} className="flex items-center gap-0.5">
                   <span className="flex flex-col items-center">
-                    <span className="w-5 h-5 rounded-full bg-cream flex items-center justify-center
-                                     text-[10px] font-medium text-charcoal/50">
+                    <span className="w-5 h-5 rounded-full bg-charcoal/10 flex items-center justify-center
+                                     text-[10px] font-semibold text-charcoal/80">
                       {i + 1}
                     </span>
-                    <span className="text-[9px] text-warm-gray/40 mt-0.5">{label}</span>
+                    <span className="text-[10px] text-charcoal/70 font-medium mt-0.5">{label}</span>
                   </span>
-                  {i < 2 && <span className="text-warm-gray/15 text-[10px] mx-0.5">→</span>}
+                  {i < 2 && <span className="text-charcoal/30 text-[10px] mx-0.5">→</span>}
                 </div>
               ))}
             </div>

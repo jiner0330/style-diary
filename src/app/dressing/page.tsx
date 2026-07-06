@@ -1072,7 +1072,7 @@ function DressingContent() {
             mobileTab === "wardrobe"
               ? "bg-rose text-white"
               : pulseWardrobeTab
-                ? "bg-rose/10 text-charcoal animate-pulse ring-[3px] ring-rose/40 shadow-lg shadow-rose/20"
+                ? "bg-rose text-white ring-4 ring-rose/30 shadow-[0_0_18px_rgba(232,120,120,0.4)]"
                 : "bg-cream text-charcoal"
           }`}
         >
