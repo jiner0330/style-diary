@@ -9,12 +9,13 @@ const CORS = {
 }
 
 // ─── Config ───
-const VOLCENGINE_KEY = process.env.VOLCENGINE_API_KEY || ""
+const VOLCENGINE_KEY = process.env.VOLCENGINE_KEY || ""
 const VOLC_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
 const SEEDREAM_MODEL = "doubao-seedream-4-0-250828"
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+const SUPABASE_URL = process.env.SUPABASE_URL || ""
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || ""
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || ""
 const RENDER_BUCKET = "outfit-renders"
 const MANNEQUIN_BUCKET = "mannequins"
 
@@ -212,7 +213,7 @@ const server = http.createServer(async (req, res) => {
     const folder = hasUserItem(items) ? `u/${userId}` : "g"
     const objectPath = `${folder}/${key}.jpg`
 
-    const supabaseAnon = createClient(SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")
+    const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     const { data: urlData } = supabaseAnon.storage.from(RENDER_BUCKET).getPublicUrl(objectPath)
     const publicUrl = urlData.publicUrl
 
