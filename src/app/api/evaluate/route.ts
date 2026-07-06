@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { chat } from "@/lib/ai"
 import { queryRules, getCurrentSeason } from "@/lib/matching-rules"
 import { getItemById } from "@/lib/mock-data"
-import { requireAuth } from "@/lib/auth"
 
 interface OutfitSlot {
   dress: string | null
@@ -88,11 +87,6 @@ ${outfitDesc}
 }
 
 export async function POST(request: NextRequest) {
-  const userId = await requireAuth(request)
-  if (!userId) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 })
-  }
-
   try {
     const body = await request.json()
     const { outfit, scene } = body as { outfit: OutfitSlot; scene?: string }
