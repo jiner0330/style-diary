@@ -336,7 +336,7 @@ function DressingContent() {
             if (sameCategory.length === 1) wardrobeMatch = sameCategory[0]
           }
           if (wardrobeMatch) {
-            item = { ...item, pattern: wardrobeMatch.pattern, material: wardrobeMatch.material, fit: wardrobeMatch.fit, length: wardrobeMatch.length, neckline: wardrobeMatch.neckline }
+            item = { ...item, pattern: item.pattern || wardrobeMatch.pattern, material: item.material || wardrobeMatch.material, fit: item.fit || wardrobeMatch.fit, length: item.length || wardrobeMatch.length, neckline: item.neckline || wardrobeMatch.neckline }
           }
         }
         if (item) {
