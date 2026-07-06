@@ -51,6 +51,7 @@ interface Props {
   onGenerateAngle?: (uiIndex: number) => void
   reviewData?: ReviewData | null
   reviewLoading?: boolean
+  shareCloseTrigger?: number
 }
 
 export default function ResultModal({
@@ -68,6 +69,7 @@ export default function ResultModal({
   onGenerateAngle,
   reviewData,
   reviewLoading,
+  shareCloseTrigger,
 }: Props) {
   const [dragging, setDragging] = useState(false)
   const draggingRef = useRef(false)
@@ -80,6 +82,8 @@ export default function ResultModal({
   const lastGenFingerprint = useRef("")
   const [feedback, setFeedback] = useState<"liked" | "disliked" | null>(null)
   const [showShare, setShowShare] = useState(false)
+
+  useEffect(() => { setShowShare(false) }, [shareCloseTrigger])
 
   // Map API angleIndex → image; resultImages is keyed by API angleIndex (0 or 2)
   const apiAngle = toApiAngle(resultAngle)

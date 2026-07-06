@@ -70,6 +70,7 @@ function DressingContent() {
   const [resultImages, setResultImages] = useState<Map<number, { url: string; prompt: string; promptZh?: string; mode?: string }>>(new Map())
   const [resultAngle, setResultAngle] = useState(0)
   const [showResult, setShowResult] = useState(false)
+  const [shareCloseTrigger, setShareCloseTrigger] = useState(0)
   const [reviewData, setReviewData] = useState<{ totalScore: number; dimensions: { label: string; score: number; icon: string }[]; comment: string } | null>(null)
   const [reviewLoading, setReviewLoading] = useState(false)
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -589,7 +590,7 @@ function DressingContent() {
             <div className="flex items-center gap-3">
               {/* 桌面端面板切换：衣橱 / 搭搭，同一时间只开一个 */}
               <button
-                onClick={() => { dismissGuide(); setDesktopPanel(prev => prev === "wardrobe" ? null : "wardrobe") }}
+                onClick={() => { dismissGuide(); setShareCloseTrigger(p => p + 1); setDesktopPanel(prev => prev === "wardrobe" ? null : "wardrobe") }}
                 className={`hidden md:flex text-xl transition-transform hover:scale-110 ${
                   desktopPanel === "wardrobe" ? "scale-110" : ""
                 }`}
@@ -598,7 +599,7 @@ function DressingContent() {
                 {userGender === "male" ? "👔" : "👗"}
               </button>
               <button
-                onClick={() => { dismissGuide(); setDesktopPanel(prev => prev === "chat" ? null : "chat") }}
+                onClick={() => { dismissGuide(); setShareCloseTrigger(p => p + 1); setDesktopPanel(prev => prev === "chat" ? null : "chat") }}
                 className={`hidden md:flex text-xl transition-transform hover:scale-110 ${
                   desktopPanel === "chat" ? "scale-110" : ""
                 }`}
@@ -1007,6 +1008,7 @@ function DressingContent() {
       <div className="flex items-center gap-2 px-4 py-2 bg-soft-white border-t border-warm-gray/20">
         <button
           onClick={() => {
+            setShareCloseTrigger(p => p + 1)
             if (mobileTab === "wardrobe") setMobileTab(null)
             else { setMobileTab("wardrobe"); setMobilePanelHeight("half") }
           }}
@@ -1020,6 +1022,7 @@ function DressingContent() {
         </button>
         <button
           onClick={() => {
+            setShareCloseTrigger(p => p + 1)
             if (mobileTab === "chat") setMobileTab(null)
             else { setMobileTab("chat"); setMobilePanelHeight("full") }
           }}
@@ -1063,6 +1066,7 @@ function DressingContent() {
         onClose={() => { setShowResult(false) }}
         reviewData={reviewData}
         reviewLoading={reviewLoading}
+        shareCloseTrigger={shareCloseTrigger}
         onSave={() => {
           const hasItems = outfit.dress || outfit.top || outfit.bottom
           if (!hasItems) { toast.error("请先搭配至少一件单品"); return }
