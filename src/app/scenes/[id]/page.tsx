@@ -31,6 +31,13 @@ export default function SceneDetailPage() {
       }
       setScene(enrichScene(data))
 
+      // 先检查首页性别选择（优先级最高）
+      let guestGender: "female" | "male" | null = null
+      try {
+        const g = localStorage.getItem("guest_gender")
+        if (g === "male" || g === "female") guestGender = g
+      } catch {}
+
       let user: { id: string } | null = null
       try {
         const result = await supabase.auth.getUser()
@@ -42,11 +49,10 @@ export default function SceneDetailPage() {
           .select("gender")
           .eq("user_id", user.id)
           .single()
-        if (profile?.gender) setUserGender(profile.gender)
-      } else {
-        // 游客模式：从首页性别选择中读取
-        const guestGender = localStorage.getItem("guest_gender")
-        if (guestGender === "male" || guestGender === "female") setUserGender(guestGender as "female" | "male")
+        if (guestGender) setUserGender(guestGender)
+        else if (profile?.gender) setUserGender(profile.gender)
+      } else if (guestGender) {
+        setUserGender(guestGender)
       }
       setLoading(false)
     }

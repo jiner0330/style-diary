@@ -228,6 +228,14 @@ function DressingContent() {
           track("scene_enter", { sceneId: sceneData.id, properties: { sceneName: sceneData.name } })
         }
       }
+      // 先检查是否刚从首页选了性别（优先级最高）
+      let guestGender: "female" | "male" | null = null
+      try {
+        const g = localStorage.getItem("guest_gender")
+        if (g === "male" || g === "female") guestGender = g
+      } catch {}
+      console.log("[dressing] guest_gender:", guestGender)
+
       // 用户画像 + 同步（getUser 在无 session 时会抛异常，try-catch 兜底）
       let user: { id: string } | null = null
       try {
@@ -237,7 +245,8 @@ function DressingContent() {
       if (user) {
         const { data: profile } = await supabase.from("user_profiles")
           .select("gender, body_type, style_tags").eq("user_id", user.id).single()
-        setUserGender(profile?.gender || "female")
+        // 用户刚选了性别 → 优先生效；否则用 profile
+        setUserGender(guestGender || profile?.gender || "female")
         if (profile?.body_type) setUserBodyType(profile.body_type)
         if (profile?.style_tags) setUserStyleTags(profile.style_tags)
 
@@ -272,11 +281,8 @@ function DressingContent() {
           console.warn("[dressing] 同步服务端方案失败:", e)
         }
       } else {
-        // 游客模式：从首页性别选择中读取默认性别
-        try {
-          const guestGender = localStorage.getItem("guest_gender")
-          if (guestGender === "male" || guestGender === "female") setUserGender(guestGender)
-        } catch {}
+        // 游客模式：使用首页性别选择
+        if (guestGender) setUserGender(guestGender)
       }
 
       setProfileLoading(false)
