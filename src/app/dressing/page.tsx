@@ -386,6 +386,7 @@ function DressingContent() {
   const wearingAISetRef = useRef(false)
   const genStartTimeRef = useRef(0)
   const celebratedGenRef = useRef<number | null>(null)
+  const wardrobeTabRef = useRef<HTMLButtonElement>(null)
 
   const hasAnyItem = !!outfit.dress || !!outfit.top || !!outfit.bottom || !!outfit.outerwear || !!outfit.shoes || !!outfit.bag || outfit.accessories.length > 0
 
@@ -1102,7 +1103,8 @@ function DressingContent() {
 
       {/* Tab 切换栏 */}
       <div className="flex items-center gap-2 px-4 py-2 bg-soft-white border-t border-warm-gray/20">
-        <motion.button
+        <button
+          ref={wardrobeTabRef}
           onClick={() => {
             setShareCloseTrigger(p => p + 1)
             if (mobileTab === "wardrobe") setMobileTab(null)
@@ -1111,15 +1113,10 @@ function DressingContent() {
           className={`flex-1 py-2.5 rounded-xl text-sm font-medium active:scale-[0.98] ${
             mobileTab === "wardrobe" ? "bg-rose text-white" : "bg-cream text-charcoal"
           }`}
-          animate={pulseWardrobeTab ? {
-            backgroundColor: "#C4A8A3",
-            color: "#FFFFFF",
-            boxShadow: ["0 0 0px rgba(196,168,163,0)", "0 0 20px rgba(196,168,163,0.6)", "0 0 0px rgba(196,168,163,0)"],
-          } : {}}
-          transition={pulseWardrobeTab ? { boxShadow: { repeat: Infinity, duration: 1.5 } } : {}}
+          style={{ backgroundColor: "#ff0000", border: "3px solid #00ff00", color: "#ffffff" }}
         >
           👤 我的衣橱
-        </motion.button>
+        </button>
         <button
           onClick={() => {
             setShareCloseTrigger(p => p + 1)
