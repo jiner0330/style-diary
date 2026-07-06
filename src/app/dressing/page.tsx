@@ -65,6 +65,8 @@ function DressingContent() {
 	const [saveDialogOpen, setSaveDialogOpen] = useState(false)
 	const [saveNameValue, setSaveNameValue] = useState("")
 	const saveInputRef = useRef<HTMLInputElement | null>(null)
+	const [guestRemaining, setGuestRemaining] = useState(3)
+	const [isGuest, setIsGuest] = useState(false)
 	const [guestSaveDialogOpen, setGuestSaveDialogOpen] = useState(false)
 	const guestSavePendingName = useRef("")
 	const panelDragY = useRef(0)
@@ -282,6 +284,8 @@ function DressingContent() {
       } else {
         // 游客模式：使用首页性别选择
         if (guestGender) setUserGender(guestGender)
+        setIsGuest(true)
+        setGuestRemaining(getGuestRemaining())
       }
 
       setProfileLoading(false)
@@ -483,13 +487,16 @@ function DressingContent() {
   }, [genTaskId, genStatus])
 
   // 游客每日生成次数限制（3次/天，localStorage 记录）
-  function checkGuestDailyLimit(): boolean {
+  function getGuestRemaining(): number {
     try {
       const stored = JSON.parse(localStorage.getItem("guest_gen_count") || "{}")
       const today = new Date().toISOString().slice(0, 10)
-      if (stored.date !== today) return true
-      return stored.count < 3
-    } catch { return true }
+      if (stored.date !== today) return 3
+      return Math.max(0, 3 - stored.count)
+    } catch { return 3 }
+  }
+  function checkGuestDailyLimit(): boolean {
+    return getGuestRemaining() > 0
   }
   function incrementGuestGenCount() {
     try {
@@ -497,6 +504,7 @@ function DressingContent() {
       const stored = JSON.parse(localStorage.getItem("guest_gen_count") || "{}")
       const count = stored.date === today ? stored.count + 1 : 1
       localStorage.setItem("guest_gen_count", JSON.stringify({ date: today, count }))
+      setGuestRemaining(Math.max(0, 3 - count))
     } catch {}
   }
 
@@ -915,6 +923,13 @@ function DressingContent() {
                 <span className="text-[10px] text-charcoal/60 font-medium bg-soft-white/90 px-2 py-0.5 rounded-full shadow-sm pointer-events-none">
                   完成搭配
                 </span>
+                {isGuest && (
+                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+                    guestRemaining > 0 ? "text-warm-gray/50 bg-cream/80" : "text-rose bg-rose/5"
+                  }`}>
+                    {guestRemaining > 0 ? `今日${guestRemaining}/3次` : "今日用完"}
+                  </span>
+                )}
               </div>
             )}
             </div>
@@ -959,6 +974,13 @@ function DressingContent() {
               )}
               完成搭配 ✨
             </button>
+            {isGuest && (
+              <span className={`text-[10px] font-medium px-2 py-1 rounded-full ${
+                guestRemaining > 0 ? "text-warm-gray/60" : "text-rose"
+              }`}>
+                {guestRemaining > 0 ? `今日剩余 ${guestRemaining}/3 次` : "今日次数已用完"}
+              </span>
+            )}
           </div>
         </div>
 
