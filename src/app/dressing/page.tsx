@@ -824,33 +824,6 @@ function DressingContent() {
             <ModelDisplay gender={userGender || "female"} angleIndex={angleIndex} onAngleChange={setAngleIndex} />
             )}
 
-            {/* 移动端：空态步骤引导 */}
-            {!hasAnyItem && (
-              <div className="md:hidden text-center py-4 px-4">
-                <p className="text-xs text-warm-gray/40 tracking-wider mb-3">三步完成搭配</p>
-                <div className="flex items-center justify-center gap-1.5">
-                  {[
-                    { step: "①", label: "挑选衣服" },
-                    { step: "②", label: "点击 ✨" },
-                    { step: "③", label: "查看效果" },
-                  ].map((s, i) => (
-                    <div key={s.step} className="flex items-center gap-1.5">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="w-7 h-7 rounded-full bg-cream flex items-center justify-center
-                                         text-[11px] font-medium text-charcoal/60">
-                          {i + 1}
-                        </span>
-                        <span className="text-[10px] text-warm-gray/50 leading-tight">{s.label}</span>
-                      </div>
-                      {i < 2 && (
-                        <span className="text-warm-gray/20 text-xs mb-3">→</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* 移动端：浮动完成按钮（可拖动） */}
             {hasAnyItem && !mobileTab && (
               <div
@@ -1099,7 +1072,7 @@ function DressingContent() {
             mobileTab === "wardrobe"
               ? "bg-rose text-white"
               : pulseWardrobeTab
-                ? "bg-cream text-charcoal animate-pulse ring-2 ring-rose/30"
+                ? "bg-rose/10 text-charcoal animate-pulse ring-[3px] ring-rose/40 shadow-lg shadow-rose/20"
                 : "bg-cream text-charcoal"
           }`}
         >
