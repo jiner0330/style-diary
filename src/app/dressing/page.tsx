@@ -387,16 +387,26 @@ function DressingContent() {
   // 首次进入：移动端「我的衣橱」tab 脉冲提醒
   const [pulseWardrobeTab, setPulseWardrobeTab] = useState(false)
   useEffect(() => {
-    if (profileLoading || hasAnyItem) return
     try {
-      if (!localStorage.getItem("sd-wardrobe-tab-pulsed")) {
-        setPulseWardrobeTab(true)
-        const timer = setTimeout(() => setPulseWardrobeTab(false), 4000)
-        try { localStorage.setItem("sd-wardrobe-tab-pulsed", "1") } catch {}
-        return () => clearTimeout(timer)
-      }
-    } catch {}
-  }, [profileLoading, hasAnyItem])
+      if (localStorage.getItem("sd-wardrobe-tab-pulsed")) return
+    } catch { return }
+    // 等页面渲染完成后再触发脉冲
+    const timer = setTimeout(() => {
+      setPulseWardrobeTab(true)
+      try { localStorage.setItem("sd-wardrobe-tab-pulsed", "1") } catch {}
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [])
+  // 用户添加衣服后取消脉冲
+  useEffect(() => {
+    if (hasAnyItem && pulseWardrobeTab) setPulseWardrobeTab(false)
+  }, [hasAnyItem, pulseWardrobeTab])
+  // 4 秒后自动取消
+  useEffect(() => {
+    if (!pulseWardrobeTab) return
+    const timer = setTimeout(() => setPulseWardrobeTab(false), 4000)
+    return () => clearTimeout(timer)
+  }, [pulseWardrobeTab])
 
   // 调用评价 API
   async function evaluateOutfit() {
@@ -1072,7 +1082,7 @@ function DressingContent() {
             mobileTab === "wardrobe"
               ? "bg-rose text-white"
               : pulseWardrobeTab
-                ? "bg-rose text-white ring-4 ring-rose/30 shadow-[0_0_18px_rgba(232,120,120,0.4)]"
+                ? "bg-rose text-white ring-4 ring-rose/40 shadow-[0_0_18px_rgba(232,120,120,0.4)] animate-pulse"
                 : "bg-cream text-charcoal"
           }`}
         >
