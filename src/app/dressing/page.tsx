@@ -1133,6 +1133,7 @@ function DressingContent() {
           generateForAngle(i)
         }}
         onClose={() => { setShowResult(false) }}
+        onRetry={() => { setShowResult(false); clearAll(); toast.success("试试换个风格搭配吧～", { duration: 2000 }) }}
         reviewData={reviewData}
         reviewLoading={reviewLoading}
         shareCloseTrigger={shareCloseTrigger}

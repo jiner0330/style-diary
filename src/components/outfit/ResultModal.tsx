@@ -47,6 +47,7 @@ interface Props {
   onCelebrated: () => void
   onAngleChange: (uiIndex: number) => void
   onClose: () => void
+  onRetry?: () => void
   onSave?: () => void
   onGenerateAngle?: (uiIndex: number) => void
   reviewData?: ReviewData | null
@@ -65,6 +66,7 @@ export default function ResultModal({
   onCelebrated,
   onAngleChange,
   onClose,
+  onRetry,
   onSave,
   onGenerateAngle,
   reviewData,
@@ -552,7 +554,7 @@ export default function ResultModal({
                     📤 分享
                   </button>
                   <button
-                    onClick={onClose}
+                    onClick={() => { if (onRetry) onRetry(); else onClose() }}
                     className="flex-1 py-2.5 rounded-xl border border-warm-gray/30 text-charcoal text-sm
                                hover:bg-soft-white transition-colors active:scale-[0.98]"
                   >
