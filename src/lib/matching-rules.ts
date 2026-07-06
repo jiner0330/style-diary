@@ -119,6 +119,7 @@ export function getSystemPrompt(profile?: UserProfile, count: number = 2): strin
       "sub_category": "shirt",
       "color": "#FAF7F4",
       "material": "真丝",
+      "pattern": "纯色",
       "fit": "合身",
       "length": "常规",
       "neckline": "翻领",
@@ -152,6 +153,8 @@ export function getSystemPrompt(profile?: UserProfile, count: number = 2): strin
 - **fit**: 紧身 | 修身 | 合身 | 宽松 | oversized
 - **length**: 短款 | 常规 | 中长 | 长款
 - **neckline**: 圆领 | V领 | 方领 | 高领 | 翻领 | 一字肩 | 吊带 | 无领
+- **pattern**: 纯色 | 格纹 | 条纹 | 碎花 | 波点 | 豹纹 | 千鸟格 | 拼接 | 扎染 | 迷彩 | 老花。默认纯色，仅在用户明确指定时使用其他图案
+- **name**: 仅描述品类、版型、颜色，**禁止**包含图案描述（格纹、条纹、印花等），图案通过 pattern 字段表达
 - **style_tags**: 1-3 个风格标签
 - **color 必须与 name 中的颜色描述一致**：name 写"裸粉"则 color 必须是 #D4C5C2 或 #C4A8A3，name 写"白色/米白/奶油白"则 color 必须是 #FAF7F4
 
@@ -177,6 +180,7 @@ export function getSystemPrompt(profile?: UserProfile, count: number = 2): strin
 - get_rules 返回的【必须避免】是硬约束
 - 子品类 sub_category 必须准确，它直接影响后续生图精度
 - **color 必须与 name 中的颜色描述一致**，严禁颜色名和 hex 不匹配
+- **pattern 默认纯色**：用户没有明确要求图案时，所有单品的 pattern 字段必须填 "纯色"，严禁擅自给下装/上衣加格纹、条纹等图案
 - 语气亲切专业，像私人搭配师`
 }
 
