@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense, useRef } from "react"
+import { motion } from "framer-motion"
 import { useSearchParams, useRouter } from "next/navigation"
 import { DndContext } from "@dnd-kit/core"
 import { supabase, getAuthToken } from "@/lib/supabase"
@@ -1097,22 +1098,24 @@ function DressingContent() {
 
       {/* Tab 切换栏 */}
       <div className="flex items-center gap-2 px-4 py-2 bg-soft-white border-t border-warm-gray/20">
-        <button
+        <motion.button
           onClick={() => {
             setShareCloseTrigger(p => p + 1)
             if (mobileTab === "wardrobe") setMobileTab(null)
             else { setMobileTab("wardrobe"); setMobilePanelHeight("half"); setPulseWardrobeTab(false) }
           }}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-[background-color,color] active:scale-[0.98] ${
-            mobileTab === "wardrobe"
-              ? "bg-rose text-white"
-              : pulseWardrobeTab
-                ? "bg-rose text-white ring-4 ring-rose/40 shadow-[0_0_18px_rgba(232,120,120,0.4)] animate-pulse"
-                : "bg-cream text-charcoal"
+          className={`flex-1 py-2.5 rounded-xl text-sm font-medium active:scale-[0.98] ${
+            mobileTab === "wardrobe" ? "bg-rose text-white" : "bg-cream text-charcoal"
           }`}
+          animate={pulseWardrobeTab ? {
+            backgroundColor: "#C4A8A3",
+            color: "#FFFFFF",
+            boxShadow: ["0 0 0px rgba(196,168,163,0)", "0 0 20px rgba(196,168,163,0.6)", "0 0 0px rgba(196,168,163,0)"],
+          } : {}}
+          transition={pulseWardrobeTab ? { boxShadow: { repeat: Infinity, duration: 1.5 } } : {}}
         >
           👤 我的衣橱
-        </button>
+        </motion.button>
         <button
           onClick={() => {
             setShareCloseTrigger(p => p + 1)
