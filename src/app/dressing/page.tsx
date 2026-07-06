@@ -390,7 +390,7 @@ function DressingContent() {
   const hasAnyItem = !!outfit.dress || !!outfit.top || !!outfit.bottom || !!outfit.outerwear || !!outfit.shoes || !!outfit.bag || outfit.accessories.length > 0
 
   // 首次进入：移动端「我的衣橱」tab 脉冲提醒（等页面加载完成后再触发）
-  const [pulseWardrobeTab, setPulseWardrobeTab] = useState(false)
+  const [pulseWardrobeTab, setPulseWardrobeTab] = useState(true) // DEBUG: 强制开启验证动画
   useEffect(() => {
     console.log("[pulse] effect run, profileLoading=", profileLoading)
     if (profileLoading) { console.log("[pulse] blocked by profileLoading"); return }
@@ -405,6 +405,7 @@ function DressingContent() {
     }, 800)
     return () => { console.log("[pulse] timer cleaned up"); clearTimeout(timer) }
   }, [profileLoading])
+  /* DEBUG: 临时禁用取消脉冲的 effect
   // 用户添加衣服后取消脉冲
   useEffect(() => {
     if (hasAnyItem && pulseWardrobeTab) setPulseWardrobeTab(false)
@@ -415,6 +416,7 @@ function DressingContent() {
     const timer = setTimeout(() => setPulseWardrobeTab(false), 5000)
     return () => clearTimeout(timer)
   }, [pulseWardrobeTab])
+  */
 
   // 调用评价 API
   async function evaluateOutfit() {
