@@ -35,17 +35,19 @@ export default function ScenesPage() {
       }
 
       // 2. 登录用户额外计入 Supabase 中的保存记录
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: outfits, error: outfitsErr } = await supabase
-          .from("outfits")
-          .select("scene_id")
-          .eq("user_id", user.id)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: outfits, error: outfitsErr } = await supabase
+            .from("outfits")
+            .select("scene_id")
+            .eq("user_id", user.id)
 
-        if (!outfitsErr && outfits) {
-          outfits.forEach((o) => { if (o.scene_id) engagedScenes.add(o.scene_id) })
+          if (!outfitsErr && outfits) {
+            outfits.forEach((o) => { if (o.scene_id) engagedScenes.add(o.scene_id) })
+          }
         }
-      }
+      } catch { /* guest — skip */ }
 
       setCompletedCount(engagedScenes.size)
     } catch (err: unknown) {

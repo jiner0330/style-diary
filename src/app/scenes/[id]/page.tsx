@@ -31,7 +31,11 @@ export default function SceneDetailPage() {
       }
       setScene(enrichScene(data))
 
-      const { data: { user } } = await supabase.auth.getUser()
+      let user: { id: string } | null = null
+      try {
+        const result = await supabase.auth.getUser()
+        user = result.data.user ?? null
+      } catch {}
       if (user) {
         const { data: profile } = await supabase
           .from("user_profiles")
@@ -39,6 +43,10 @@ export default function SceneDetailPage() {
           .eq("user_id", user.id)
           .single()
         if (profile?.gender) setUserGender(profile.gender)
+      } else {
+        // 游客模式：从首页性别选择中读取
+        const guestGender = localStorage.getItem("guest_gender")
+        if (guestGender === "male" || guestGender === "female") setUserGender(guestGender as "female" | "male")
       }
       setLoading(false)
     }

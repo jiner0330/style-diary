@@ -228,8 +228,12 @@ function DressingContent() {
           track("scene_enter", { sceneId: sceneData.id, properties: { sceneName: sceneData.name } })
         }
       }
-      // 用户画像 + 同步
-      const { data: { user } } = await supabase.auth.getUser()
+      // 用户画像 + 同步（getUser 在无 session 时会抛异常，try-catch 兜底）
+      let user: { id: string } | null = null
+      try {
+        const result = await supabase.auth.getUser()
+        user = result.data.user ?? null
+      } catch {}
       if (user) {
         const { data: profile } = await supabase.from("user_profiles")
           .select("gender, body_type, style_tags").eq("user_id", user.id).single()
