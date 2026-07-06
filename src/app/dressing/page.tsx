@@ -390,17 +390,16 @@ function DressingContent() {
 
   // 首次进入：移动端「我的衣橱」tab 脉冲提醒（等页面加载完成后再触发）
   const [pulseWardrobeTab, setPulseWardrobeTab] = useState(false)
-  const pulseShownRef = useRef(false)
   useEffect(() => {
-    if (profileLoading || pulseShownRef.current) return
+    if (profileLoading) return
     try {
-      if (localStorage.getItem("sd-wardrobe-tab-pulsed")) return
-    } catch { return }
-    pulseShownRef.current = true
+      if (localStorage.getItem("sd-wardrobe-tab-pulsed-v2")) return
+    } catch { /* ignore */ }
     const timer = setTimeout(() => {
       setPulseWardrobeTab(true)
-      try { localStorage.setItem("sd-wardrobe-tab-pulsed", "1") } catch {}
-    }, 600)
+      console.log("[pulse] setPulseWardrobeTab(true) fired")
+      try { localStorage.setItem("sd-wardrobe-tab-pulsed-v2", "1") } catch {}
+    }, 800)
     return () => clearTimeout(timer)
   }, [profileLoading])
   // 用户添加衣服后取消脉冲
