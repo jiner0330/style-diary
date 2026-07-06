@@ -9,7 +9,6 @@ export default function Home() {
   const [hasAccount, setHasAccount] = useState(false)
 
   useEffect(() => {
-    // 检测是否已登录（有无 Supabase session）
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
@@ -19,7 +18,6 @@ export default function Home() {
         }
       }
     } catch {}
-    // 随机展示 4 张效果图
     setImages([
       "/showcase-1.jpg",
       "/showcase-2.jpg",
@@ -34,46 +32,61 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-between py-10 px-6">
+    <div className="flex flex-col flex-1 items-center px-6 py-10">
       {/* Hero */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-5">
-        <h1 className="text-4xl font-semibold tracking-widest text-charcoal">搭搭</h1>
-        <div className="text-center space-y-0.5">
-          <p className="text-lg text-charcoal/80 font-medium">你的私人AI造型师</p>
-          <p className="text-sm text-warm-gray">10秒出搭配</p>
-        </div>
+      <div className="flex flex-col items-center gap-1 mb-8">
+        <h1 className="text-3xl font-semibold tracking-[0.2em] text-charcoal">搭搭</h1>
+        <p className="text-[15px] text-charcoal/70 font-medium mt-2">你的私人AI造型师</p>
+        <p className="text-[13px] text-warm-gray">10秒出搭配</p>
+      </div>
 
-        {/* 性别选择 */}
-        <div className="flex gap-4 w-full max-w-xs mt-3">
-          <button
-            type="button"
-            onClick={() => selectGender("female")}
-            className="flex-1 py-4 rounded-2xl bg-rose text-soft-white font-medium
-                       text-lg tracking-wide transition-all active:scale-[0.98]"
-          >
-            👗 女生搭配
-          </button>
-          <button
-            type="button"
-            onClick={() => selectGender("male")}
-            className="flex-1 py-4 rounded-2xl bg-charcoal text-soft-white font-medium
-                       text-lg tracking-wide transition-all active:scale-[0.98]"
-          >
-            👔 男生搭配
-          </button>
-        </div>
+      {/* 性别选择卡片 */}
+      <p className="text-xs text-warm-gray/60 mb-3 tracking-wide">选择你的风格</p>
+      <div className="flex gap-3 w-full max-w-xs">
+        <button
+          type="button"
+          onClick={() => selectGender("female")}
+          className="flex-1 flex flex-col items-center justify-center gap-2
+                     py-8 rounded-2xl
+                     bg-white border border-warm-gray/20
+                     shadow-sm hover:shadow-md
+                     active:scale-[0.97] transition-all duration-150
+                     group"
+        >
+          <span className="text-4xl font-light text-rose/80 group-active:text-rose transition-colors">
+            &#9793;
+          </span>
+          <span className="text-sm font-medium text-charcoal/70">女生搭配</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => selectGender("male")}
+          className="flex-1 flex flex-col items-center justify-center gap-2
+                     py-8 rounded-2xl
+                     bg-white border border-warm-gray/20
+                     shadow-sm hover:shadow-md
+                     active:scale-[0.97] transition-all duration-150
+                     group"
+        >
+          <span className="text-4xl font-light text-charcoal/60 group-active:text-charcoal transition-colors">
+            &#9794;
+          </span>
+          <span className="text-sm font-medium text-charcoal/70">男生搭配</span>
+        </button>
       </div>
 
       {/* 效果图展示 */}
-      <div className="space-y-3 w-full max-w-xs mt-8">
-        <p className="text-xs text-center text-warm-gray/50">AI 搭配效果</p>
+      <div className="w-full max-w-xs mt-10 space-y-2.5">
+        <p className="text-[11px] text-center text-warm-gray/40 tracking-wider">AI 搭配效果</p>
         <div className="grid grid-cols-2 gap-2">
           {images.map((src, i) => (
-            <div key={src} className="rounded-xl overflow-hidden bg-cream/30 aspect-[3/4]">
+            <div key={src} className="rounded-xl overflow-hidden bg-cream/20 aspect-[3/4]">
               <img
                 src={src}
                 alt={`搭配效果示例 ${i + 1}`}
                 className="w-full h-full object-cover"
+                loading="lazy"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = "none"
                 }}
@@ -83,13 +96,13 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 底部：登录入口 */}
-      <p className="mt-6 text-sm">
+      {/* 底部 */}
+      <p className="mt-8 text-[13px]">
         {hasAccount ? (
           <button
             type="button"
             onClick={() => router.push("/scenes")}
-            className="text-charcoal/70 hover:text-rose transition-colors"
+            className="text-charcoal/50 hover:text-rose transition-colors"
           >
             欢迎回来，继续探索 →
           </button>
@@ -97,7 +110,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => router.push("/auth")}
-            className="text-warm-gray/60 hover:text-rose transition-colors"
+            className="text-warm-gray/40 hover:text-rose transition-colors"
           >
             已有账号？登录
           </button>
