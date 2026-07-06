@@ -169,7 +169,7 @@ export default function SharePanel({ imageUrl, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
       <div
         className="bg-soft-white rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-fade-in-up"
         onClick={(e) => e.stopPropagation()}
