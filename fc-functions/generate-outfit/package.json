@@ -1,0 +1,12 @@
+{
+  "name": "generate-outfit-fc",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "sharp": "^0.33.0"
+  }
+}

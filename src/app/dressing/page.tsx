@@ -441,7 +441,8 @@ function DressingContent() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/generate-outfit?taskId=${genTaskId}`)
+        const genUrl = process.env.NEXT_PUBLIC_FC_GENERATE_OUTFIT_URL || "/api/generate-outfit"
+        const res = await fetch(`${genUrl}?taskId=${genTaskId}`)
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || "查询失败")
 
@@ -541,10 +542,11 @@ function DressingContent() {
     const reqBody = JSON.stringify({ gender: userGender, items, angleIndex: apiAngle })
     let lastErr: any = null
 
-    // 生图偶发超时（Hobby 60s 函数上限，gpt-image-2 有时 >55s），失败透明重试一次
+    // 生图偶发超时（Hobby 60s 函数上限），失败透明重试一次；优先走 FC 上海
+    const genUrl = process.env.NEXT_PUBLIC_FC_GENERATE_OUTFIT_URL || "/api/generate-outfit"
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await fetch("/api/generate-outfit", {
+        const res = await fetch(genUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
