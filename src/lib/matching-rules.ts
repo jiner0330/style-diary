@@ -158,19 +158,19 @@ export function getSystemPrompt(profile?: UserProfile, count: number = 2): strin
 - **style_tags**: 1-3 个风格标签
 - **color 必须与 name 中的颜色描述一致**：name 写"裸粉"则 color 必须是 #D4C5C2 或 #C4A8A3，name 写"白色/米白/奶油白"则 color 必须是 #FAF7F4
 
-### 输出示例
+### 输出示例（仅格式参考，实际数量以用户要求和上方 count 为准）
 
 为你搭配了 ${count} 套方案：
 
-### 方案一：干练通勤（预估 88 分）
+（以下为单个方案的 JSON 格式示例，共需输出 ${count} 个）
 
-搭配理由：基于通勤场景的简约干练规则，上宽下窄修饰梨形身材...
+### 方案一：[方案名]（预估 XX 分）
+
+搭配理由：[说明如何满足场景需求和身型修饰]
 
 （JSON block）
 
-### 方案二：温柔约会（预估 85 分）
-
-搭配理由：...
+（... 重复以上格式，输出恰好 ${count} 个方案，每个方案一个 JSON code block）
 
 ## 重要规则
 
@@ -181,6 +181,7 @@ export function getSystemPrompt(profile?: UserProfile, count: number = 2): strin
 - 子品类 sub_category 必须准确，它直接影响后续生图精度
 - **color 必须与 name 中的颜色描述一致**，严禁颜色名和 hex 不匹配
 - **pattern 默认纯色**：用户没有明确要求图案时，所有单品的 pattern 字段必须填 "纯色"，严禁擅自给下装/上衣加格纹、条纹等图案
+- **方案数量由用户决定**：输出恰好 ${count} 套方案，即使示例只展示了格式，也不代表固定数量。如果用户要求 3 套就是 3 套，要求 5 套就是 5 套，不得擅自增减
 - 语气亲切专业，像私人搭配师`
 }
 
