@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, Suspense, useRef } from "react"
-import { motion } from "framer-motion"
 import { useSearchParams, useRouter } from "next/navigation"
 import { DndContext } from "@dnd-kit/core"
 import { supabase, getAuthToken } from "@/lib/supabase"
@@ -41,7 +40,6 @@ const CATEGORY_TO_SLOT: Record<string, string> = {
 }
 
 function DressingContent() {
-  console.log("[pulse] DressingContent render")
   const router = useRouter()
   const searchParams = useSearchParams()
   const sceneId = searchParams.get("id")
@@ -390,34 +388,48 @@ function DressingContent() {
 
   const hasAnyItem = !!outfit.dress || !!outfit.top || !!outfit.bottom || !!outfit.outerwear || !!outfit.shoes || !!outfit.bag || outfit.accessories.length > 0
 
-  // 首次进入：移动端「我的衣橱」tab 脉冲提醒（等页面加载完成后再触发）
-  const [pulseWardrobeTab, setPulseWardrobeTab] = useState(true) // DEBUG: 强制开启验证动画
+  // 首次进入：移动端「我的衣橱」tab 脉冲提醒
+  const [pulseWardrobeTab, setPulseWardrobeTab] = useState(false)
+
+  // 条件检查：profile 加载完成 + 未曾展示过
   useEffect(() => {
-    console.log("[pulse] effect run, profileLoading=", profileLoading)
-    if (profileLoading) { console.log("[pulse] blocked by profileLoading"); return }
-    let lsVal = null
-    try { lsVal = localStorage.getItem("sd-wardrobe-tab-pulsed-v2") } catch (e) { console.log("[pulse] localStorage error", e) }
-    if (lsVal) { console.log("[pulse] blocked by localStorage, key exists"); return }
-    console.log("[pulse] scheduling timer in 800ms")
+    if (profileLoading) return
+    try {
+      if (localStorage.getItem("sd-wardrobe-tab-pulsed-v2")) return
+    } catch {}
     const timer = setTimeout(() => {
       setPulseWardrobeTab(true)
-      console.log("[pulse] setPulseWardrobeTab(true) fired")
       try { localStorage.setItem("sd-wardrobe-tab-pulsed-v2", "1") } catch {}
     }, 800)
-    return () => { console.log("[pulse] timer cleaned up"); clearTimeout(timer) }
+    return () => clearTimeout(timer)
   }, [profileLoading])
-  /* DEBUG: 临时禁用取消脉冲的 effect
+
+  // Web Animations API 驱动脉冲（原生 API，不依赖 CSS class / framer-motion）
+  useEffect(() => {
+    const el = wardrobeTabRef.current
+    if (!el || !pulseWardrobeTab) return
+    const animation = el.animate(
+      [
+        { boxShadow: "0 0 0px rgba(196,168,163,0)", backgroundColor: "#C4A8A3", color: "#ffffff" },
+        { boxShadow: "0 0 20px rgba(196,168,163,0.6)", backgroundColor: "#C4A8A3", color: "#ffffff" },
+        { boxShadow: "0 0 0px rgba(196,168,163,0)", backgroundColor: "#C4A8A3", color: "#ffffff" },
+      ],
+      { duration: 1500, iterations: Infinity, easing: "ease-in-out" }
+    )
+    return () => animation.cancel()
+  }, [pulseWardrobeTab])
+
   // 用户添加衣服后取消脉冲
   useEffect(() => {
     if (hasAnyItem && pulseWardrobeTab) setPulseWardrobeTab(false)
   }, [hasAnyItem, pulseWardrobeTab])
+
   // 5 秒后自动取消
   useEffect(() => {
     if (!pulseWardrobeTab) return
     const timer = setTimeout(() => setPulseWardrobeTab(false), 5000)
     return () => clearTimeout(timer)
   }, [pulseWardrobeTab])
-  */
 
   // 调用评价 API
   async function evaluateOutfit() {
@@ -1113,7 +1125,6 @@ function DressingContent() {
           className={`flex-1 py-2.5 rounded-xl text-sm font-medium active:scale-[0.98] ${
             mobileTab === "wardrobe" ? "bg-rose text-white" : "bg-cream text-charcoal"
           }`}
-          style={{ backgroundColor: "#ff0000", border: "3px solid #00ff00", color: "#ffffff" }}
         >
           👤 我的衣橱
         </button>
