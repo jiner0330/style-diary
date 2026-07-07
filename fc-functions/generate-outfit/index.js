@@ -74,6 +74,50 @@ function json(res, status, data) {
   res.end(JSON.stringify(data))
 }
 
+// ─── Style → Hairstyle mapping ───
+const HAIRSTYLE_FEMALE = {
+  甜美: "蓬松双马尾",
+  法式: "法式低盘发",
+  优雅: "优雅低马尾",
+  复古: "慵懒波浪卷发",
+  街头: "高马尾",
+  运动: "利落高马尾",
+  简约: "柔顺直发披肩",
+  通勤: "干练低马尾",
+  商务休闲: "侧分锁骨发",
+  个性: "不对称短发",
+}
+const HAIRSTYLE_MALE = {
+  街头: "凌乱纹理短发",
+  运动: "利落寸头",
+  简约: "清爽短碎发",
+  通勤: "干练短发",
+  商务休闲: "侧分油头",
+  个性: "中分微卷发",
+  复古: "慵懒纹理卷发",
+}
+const DEFAULT_HAIR = { female: "自然丸子头", male: "清爽短碎发" }
+
+function pickHairstyle(items, gender) {
+  const map = gender === "male" ? HAIRSTYLE_MALE : HAIRSTYLE_FEMALE
+  const seen = new Set()
+  // Collect all style tags across items
+  for (const item of items) {
+    const tags = item.style_tags
+    if (!tags || !Array.isArray(tags)) continue
+    for (const t of tags) {
+      if (map[t]) seen.add(t)
+    }
+  }
+  if (seen.size > 0) {
+    // Pick the first matched tag (priority in map order)
+    for (const key of Object.keys(map)) {
+      if (seen.has(key)) return map[key]
+    }
+  }
+  return DEFAULT_HAIR[gender] || DEFAULT_HAIR.female
+}
+
 // ─── Build Seedream payload ───
 function buildSeedreamPayload(items, angleIndex, gender) {
   const angle = ANGLE_MAP[angleIndex] || "front"
@@ -97,11 +141,13 @@ function buildSeedreamPayload(items, angleIndex, gender) {
     }
   }
 
+  const hairstyle = pickHairstyle(items, gender)
+
   const promptParts = [
     "图1是人物基底参考图。将图1人物的服装完整替换为以下服装：",
     clothingRefs.join("、") + "。",
     "严格按照每张参考图中的服装还原，包括图案纹理、面料质感、版型剪裁、颜色等所有细节。",
-    "保持图1人物的面部五官、发型、肤色和手绘插画风格完全不变。",
+    `保持图1人物的面部五官、肤色和手绘插画风格完全不变。将发型改为：${hairstyle}。`,
     "保持图1的构图和人物比例完全不变——全身完整可见，头顶到脚尖都在画面内，不裁切。",
     "奶油纸纹背景，纯白底色，温暖治愈感。",
     angle === "back"
