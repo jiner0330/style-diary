@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useDraggable } from "@dnd-kit/core"
 import type { ClothingItem } from "@/types"
 import { usePersonalWardrobe } from "@/hooks/usePersonalWardrobe"
@@ -87,6 +88,7 @@ function ClickableThumb({ item, onClick, onDelete }: { item: ClothingItem; onCli
 }
 
 export default function PersonalWardrobeBar({ onItemClick, compact = false }: Props) {
+  const router = useRouter()
   const { items, loading, refresh, deleteItem } = usePersonalWardrobe()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -113,7 +115,8 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
     try {
       const token = await getAuthToken()
       if (!token) {
-        toast.error("请先登录再上传")
+        toast.error("请先登录")
+        router.push(`/auth?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
         return
       }
 

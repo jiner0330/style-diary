@@ -677,18 +677,26 @@ function DressingContent() {
       <div className="flex flex-col flex-1 h-[100dvh]">
         {/* 顶部操作栏 */}
         <header className="relative flex flex-col bg-soft-white border-b border-warm-gray/20">
-          {/* 第一行：场景名居中，🔊 紧邻其右，返回靠最右 */}
+          {/* 第一行：场景名居中，🔊 紧邻其右，返回靠左，登录靠右 */}
           <div className="relative flex items-center justify-center gap-2 px-4 pt-2.5 pb-1">
+            <button
+              onClick={() => router.push('/scenes')}
+              className="absolute left-4 text-sm text-warm-gray hover:text-rose transition-colors"
+            >
+              ← 返回
+            </button>
             <h2 className="text-xl font-semibold bg-[linear-gradient(90deg,#A6B27E,#788A50)] bg-clip-text text-transparent">
               {scene?.name || "自由搭配"}
             </h2>
             <AmbientSound name={scene?.name || ""} moodTags={scene?.mood_tags || []} ambientSoundUrl={scene?.ambient_sound_url || null} />
-            <button
-              onClick={() => router.push('/scenes')}
-              className="absolute right-4 text-sm text-warm-gray hover:text-rose transition-colors"
-            >
-              ← 返回
-            </button>
+            {isGuest && (
+              <button
+                onClick={() => router.push(`/auth?redirect=/dressing?id=${sceneId || ""}`)}
+                className="absolute right-4 text-sm text-rose hover:text-rose/80 transition-colors font-medium"
+              >
+                登录
+              </button>
+            )}
           </div>
 
           {/* 第二行：左 衣橱/搭搭，右 保存/下载 */}
