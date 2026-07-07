@@ -197,14 +197,12 @@ function buildSeedreamPayload(items, angleIndex, gender) {
   const clothingSlots = new Set(["dress", "top", "bottom", "outerwear", "shoes", "bag"])
 
   for (const item of items) {
-    // Accessories: describe in text with precise positioning (Seedream can't use product images)
+    // Accessories: brief text mention only (avoid Seedream over-rendering)
     if (item.slot === "accessories") {
       const parts = []
       if (item.name) parts.push(item.name)
       if (item.color) parts.push(item.color)
-      if (item.material) parts.push(item.material)
-      if (item.detail) parts.push(item.detail)
-      const desc = parts.join("，")
+      const desc = parts.join(" ")
       const pos = (item.sub_category && ACCESSORY_POSITION[item.sub_category])
         ? ACCESSORY_POSITION[item.sub_category]
         : ""
@@ -237,12 +235,11 @@ function buildSeedreamPayload(items, angleIndex, gender) {
       : "正面全身视图，A字站姿。",
   ]
 
-  // Append accessory descriptions as precise text placement instructions
+  // Append accessory descriptions as subtle hints (not main focus)
   if (accessoryDescs.length > 0) {
     promptParts.push(
-      "人物同时佩戴以下配饰，请精准绘制在对应身体位置：",
-      accessoryDescs.map((d, i) => `${i + 1}. ${d}`).join("；") + "。",
-      "配饰的款式、颜色、材质需严格按上述描述还原，位置必须准确。"
+      "配饰细节：" + accessoryDescs.join("；") + "。",
+      "配饰保持正常比例，自然融入整体穿搭，不作为画面焦点。"
     )
   }
 
