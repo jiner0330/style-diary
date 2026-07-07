@@ -28,6 +28,27 @@ const SLOT_LABEL = {
 
 const ANGLE_MAP = { 0: "front", 2: "back" }
 
+// ─── Accessory compositing layout (pixel coords at 1280×1920) ───
+// Each sub_category maps to { cx, cy, w, h } — center point + target size
+const ACCESSORY_LAYOUT = {
+  sunglasses: { cx: 640, cy: 325, w: 190, h: 75 },
+  earrings: {
+    left:  { cx: 535, cy: 345, w: 38, h: 55 },
+    right: { cx: 745, cy: 345, w: 38, h: 55 },
+  },
+  necklace:  { cx: 640, cy: 460, w: 150, h: 100 },
+  scarf:     { cx: 640, cy: 480, w: 175, h: 110 },
+  watch: {
+    left:  { cx: 370, cy: 980, w: 78, h: 55 },
+    right: { cx: 910, cy: 980, w: 78, h: 55 },
+  },
+  belt: { cx: 640, cy: 1050, w: 195, h: 55 },
+  hat:  { cx: 640, cy: 195, w: 210, h: 125 },
+}
+
+// Sub-categories not visible from back view
+const BACK_HIDDEN = new Set(["sunglasses", "earrings", "necklace", "scarf", "watch"])
+
 // ─── Helpers ───
 function getMannequinUrl(gender, angleIndex) {
   const angle = ANGLE_MAP[angleIndex] || "front"
@@ -74,6 +95,84 @@ function json(res, status, data) {
   res.end(JSON.stringify(data))
 }
 
+// ─── Accessory compositing ───
+async function removeWhiteBackground(inputBuffer) {
+  const { data, info } = await sharp(inputBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  for (let i = 0; i < data.length; i += 4) {
+    // Pixels where R,G,B are all > 245 → transparent
+    if (data[i] > 245 && data[i + 1] > 245 && data[i + 2] > 245) {
+      data[i + 3] = 0
+    }
+  }
+
+  return sharp(data, {
+    raw: { width: info.width, height: info.height, channels: 4 }
+  }).png().toBuffer()
+}
+
+async function compositeAccessories(baseBuffer, accessoryItems, gender, angle) {
+  const composites = []
+
+  for (const item of accessoryItems) {
+    if (!item.image_url) continue
+    const sub = item.sub_category
+    if (!sub || !ACCESSORY_LAYOUT[sub]) {
+      console.log(`[composite] skip ${item.name}: unknown sub_category "${sub}"`)
+      continue
+    }
+
+    // Back view hides most accessories
+    if (angle === "back" && BACK_HIDDEN.has(sub)) continue
+
+    let layout = ACCESSORY_LAYOUT[sub]
+    // Handle side-specific accessories (earrings, watch)
+    if (layout.left && layout.right) {
+      // Default to left side if not specified
+      layout = layout.left
+    }
+
+    try {
+      const url = resolveImageUrl(item.image_url)
+      console.log(`[composite] downloading ${item.name}: ${url}`)
+      const accRes = await fetch(url)
+      if (!accRes.ok) {
+        console.warn(`[composite] download failed for ${item.name}: ${accRes.status}`)
+        continue
+      }
+
+      let accBuffer = Buffer.from(await accRes.arrayBuffer())
+      // Remove white background for clean overlay
+      accBuffer = await removeWhiteBackground(accBuffer)
+
+      // Resize to target dimensions
+      accBuffer = await sharp(accBuffer)
+        .resize(layout.w, layout.h, { fit: "inside", withoutEnlargement: true })
+        .png()
+        .toBuffer()
+
+      // Calculate top-left from center point
+      const left = Math.round(layout.cx - layout.w / 2)
+      const top = Math.round(layout.cy - layout.h / 2)
+
+      composites.push({ input: accBuffer, top, left, blend: "over" })
+      console.log(`[composite] ${item.name} → (${left}, ${top}) ${layout.w}×${layout.h}`)
+    } catch (err) {
+      console.warn(`[composite] error processing ${item.name}:`, err.message)
+    }
+  }
+
+  if (composites.length === 0) return baseBuffer
+
+  return sharp(baseBuffer)
+    .composite(composites)
+    .jpeg({ quality: 92, progressive: true })
+    .toBuffer()
+}
+
 // ─── Build Seedream payload ───
 function buildSeedreamPayload(items, angleIndex, gender) {
   const angle = ANGLE_MAP[angleIndex] || "front"
@@ -83,8 +182,11 @@ function buildSeedreamPayload(items, angleIndex, gender) {
   const clothingRefs = []
   let imgIdx = 2
 
+  // Only process clothing items — accessories are composited post-generation
+  const clothingSlots = new Set(["dress", "top", "bottom", "outerwear", "shoes", "bag"])
+
   for (const item of items) {
-    if (item.slot === "accessories" && !item.image_url) continue
+    if (!clothingSlots.has(item.slot)) continue
     const label = SLOT_LABEL[item.slot] || item.slot
     if (item.image_url) {
       imageUrls.push(resolveImageUrl(item.image_url))
@@ -107,7 +209,6 @@ function buildSeedreamPayload(items, angleIndex, gender) {
     angle === "back"
       ? "背面全身视图，不显示面部。不显示任何前襟、纽扣、领口等正面细节。"
       : "正面全身视图，A字站姿。",
-    "如果有配饰参考图（眼镜、手表、项链等），保持其款式和位置还原到图1人物对应位置。",
   ]
 
   return { imageUrls, prompt: promptParts.join(" ") }
@@ -236,9 +337,16 @@ const server = http.createServer(async (req, res) => {
 
     console.log(`[generate-outfit] generated in ${Date.now() - t0}ms`)
 
+    // ─── Composite accessories (post-generation) ───
+    const accessoryItems = items.filter((i) => i.slot === "accessories" && i.image_url)
+    console.log(`[generate-outfit] compositing ${accessoryItems.length} accessories...`)
+    const compositedBuffer = await compositeAccessories(
+      generatedBuffer, accessoryItems, safeGender, ANGLE_MAP[angle] || "front"
+    )
+
     // ─── Compress & cache ───
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    const jpegBuffer = await sharp(generatedBuffer)
+    const jpegBuffer = await sharp(compositedBuffer)
       .jpeg({ quality: 85, progressive: true })
       .toBuffer()
 
