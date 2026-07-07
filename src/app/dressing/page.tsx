@@ -221,68 +221,68 @@ function DressingContent() {
     // 切换场景时清空上一个场景的搭配状态
     useOutfitStore.getState().clearAll()
     async function load() {
-      // 场景
-      if (sceneId) {
-        const { data: sceneData } = await supabase.from("scenes").select("*").eq("id", sceneId).single()
-        if (sceneData) {
-          setScene(enrichScene(sceneData))
-          track("scene_enter", { sceneId: sceneData.id, properties: { sceneName: sceneData.name } })
-        }
-      }
-      // 先检查是否刚从首页选了性别（优先级最高）
-      let guestGender: "female" | "male" | null = null
-      try {
-        const g = localStorage.getItem("guest_gender")
-        if (g === "male" || g === "female") guestGender = g
-      } catch {}
-      console.log("[dressing] guest_gender:", guestGender)
+      // 并行：场景查询 + 游客性别检查 + 用户认证（互不依赖）
+      const guestGender: "female" | "male" | null = (() => {
+        try {
+          const g = localStorage.getItem("guest_gender")
+          return (g === "male" || g === "female") ? g : null
+        } catch { return null }
+      })()
 
-      // 用户画像 + 同步（getUser 在无 session 时会抛异常，try-catch 兜底）
-      let user: { id: string } | null = null
-      try {
-        const result = await supabase.auth.getUser()
-        user = result.data.user ?? null
-      } catch {}
+      const [sceneResult, authResult] = await Promise.all([
+        sceneId
+          ? supabase.from("scenes").select("*").eq("id", sceneId).single()
+          : Promise.resolve({ data: null }),
+        supabase.auth.getUser().catch(() => ({ data: { user: null } })),
+      ])
+
+      // 场景
+      if (sceneResult.data) {
+        setScene(enrichScene(sceneResult.data))
+        track("scene_enter", { sceneId: sceneResult.data.id, properties: { sceneName: sceneResult.data.name } })
+      }
+
+      const user = authResult.data.user ?? null
+
       if (user) {
-        const { data: profile } = await supabase.from("user_profiles")
-          .select("gender, body_type, style_tags").eq("user_id", user.id).single()
-        // 用户刚选了性别 → 优先生效；否则用 profile
+        // 并行：用户画像 + 保存方案（都依赖 user.id，但彼此独立）
+        const [profileResult, outfitsResult] = await Promise.all([
+          supabase.from("user_profiles")
+            .select("gender, body_type, style_tags").eq("user_id", user.id).single(),
+          supabase.from("outfits")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(30),
+        ])
+
+        const profile = profileResult.data
         setUserGender(guestGender || profile?.gender || "female")
         if (profile?.body_type) setUserBodyType(profile.body_type)
         if (profile?.style_tags) setUserStyleTags(profile.style_tags)
 
-        // 跨设备同步：从 Supabase 拉取保存方案，合并到本地
-        try {
-          const { data: serverOutfits, error: syncErr } = await supabase
-            .from("outfits")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(30)
-          if (!syncErr && serverOutfits && serverOutfits.length > 0) {
-            const converted = serverOutfits.map((row: any) => ({
-              id: row.id || `sv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              name: row.name || "",
-              outfit: {
-                dress: row.dress || null,
-                top: row.top || null,
-                bottom: row.bottom || null,
-                outerwear: row.outerwear || null,
-                shoes: row.shoes || null,
-                bag: row.bag || null,
-                accessories: Array.isArray(row.accessories) ? row.accessories : [],
-              },
-              sceneId: row.scene_id || null,
-              gender: (row.gender || profile?.gender || "female") as "female" | "male",
-              createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
-            }))
-            mergeOutfits(converted)
-          }
-        } catch (e) {
-          console.warn("[dressing] 同步服务端方案失败:", e)
+        // 跨设备同步：合并服务端方案
+        const serverOutfits = outfitsResult.data
+        if (!outfitsResult.error && serverOutfits && serverOutfits.length > 0) {
+          const converted = serverOutfits.map((row: any) => ({
+            id: row.id || `sv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: row.name || "",
+            outfit: {
+              dress: row.dress || null,
+              top: row.top || null,
+              bottom: row.bottom || null,
+              outerwear: row.outerwear || null,
+              shoes: row.shoes || null,
+              bag: row.bag || null,
+              accessories: Array.isArray(row.accessories) ? row.accessories : [],
+            },
+            sceneId: row.scene_id || null,
+            gender: (row.gender || profile?.gender || "female") as "female" | "male",
+            createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+          }))
+          mergeOutfits(converted)
         }
       } else {
-        // 游客模式：使用首页性别选择
         if (guestGender) setUserGender(guestGender)
         setIsGuest(true)
         setGuestRemaining(getGuestRemaining())
