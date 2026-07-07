@@ -282,9 +282,19 @@ const server = http.createServer(async (req, res) => {
 
     console.log(`[generate-outfit] generated in ${Date.now() - t0}ms`)
 
+    // ─── Watermark ───
+    const watermarkSvg = `<svg width="260" height="44" xmlns="http://www.w3.org/2000/svg">
+      <text x="250" y="30" font-family="sans-serif" font-size="15" fill="#8B7355" opacity="0.40" text-anchor="end">搭配 by 搭搭</text>
+    </svg>`
+
     // ─── Compress & cache ───
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     const jpegBuffer = await sharp(generatedBuffer)
+      .composite([{
+        input: Buffer.from(watermarkSvg),
+        top: 1920 - 44 - 28,
+        left: 1280 - 260 - 28,
+      }])
       .jpeg({ quality: 85, progressive: true })
       .toBuffer()
 
