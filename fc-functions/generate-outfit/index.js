@@ -174,18 +174,44 @@ async function compositeAccessories(baseBuffer, accessoryItems, gender, angle) {
 }
 
 // ─── Build Seedream payload ───
+const ACCESSORY_POSITION = {
+  sunglasses: "佩戴在眼部，镜框覆盖双眼",
+  earrings:   "佩戴在耳垂下方，左右各一只",
+  necklace:   "佩戴在颈部锁骨位置",
+  watch:      "佩戴在左手手腕处",
+  belt:       "系在腰间裤腰位置",
+  hat:        "戴在头顶",
+  scarf:      "系在颈部",
+  bag:        "挎在肩部或手提",
+}
+
 function buildSeedreamPayload(items, angleIndex, gender) {
   const angle = ANGLE_MAP[angleIndex] || "front"
   const mannequinUrl = getMannequinUrl(gender, angleIndex)
 
   const imageUrls = [mannequinUrl]
   const clothingRefs = []
+  const accessoryDescs = []
   let imgIdx = 2
 
-  // Only process clothing items — accessories are composited post-generation
   const clothingSlots = new Set(["dress", "top", "bottom", "outerwear", "shoes", "bag"])
 
   for (const item of items) {
+    // Accessories: describe in text with precise positioning (Seedream can't use product images)
+    if (item.slot === "accessories") {
+      const parts = []
+      if (item.name) parts.push(item.name)
+      if (item.color) parts.push(item.color)
+      if (item.material) parts.push(item.material)
+      if (item.detail) parts.push(item.detail)
+      const desc = parts.join("，")
+      const pos = (item.sub_category && ACCESSORY_POSITION[item.sub_category])
+        ? ACCESSORY_POSITION[item.sub_category]
+        : ""
+      if (desc) accessoryDescs.push(`${desc}，${pos}`)
+      continue
+    }
+
     if (!clothingSlots.has(item.slot)) continue
     const label = SLOT_LABEL[item.slot] || item.slot
     if (item.image_url) {
@@ -210,6 +236,15 @@ function buildSeedreamPayload(items, angleIndex, gender) {
       ? "背面全身视图，不显示面部。不显示任何前襟、纽扣、领口等正面细节。"
       : "正面全身视图，A字站姿。",
   ]
+
+  // Append accessory descriptions as precise text placement instructions
+  if (accessoryDescs.length > 0) {
+    promptParts.push(
+      "人物同时佩戴以下配饰，请精准绘制在对应身体位置：",
+      accessoryDescs.map((d, i) => `${i + 1}. ${d}`).join("；") + "。",
+      "配饰的款式、颜色、材质需严格按上述描述还原，位置必须准确。"
+    )
+  }
 
   return { imageUrls, prompt: promptParts.join(" ") }
 }
@@ -337,16 +372,9 @@ const server = http.createServer(async (req, res) => {
 
     console.log(`[generate-outfit] generated in ${Date.now() - t0}ms`)
 
-    // ─── Composite accessories (post-generation) ───
-    const accessoryItems = items.filter((i) => i.slot === "accessories" && i.image_url)
-    console.log(`[generate-outfit] compositing ${accessoryItems.length} accessories...`)
-    const compositedBuffer = await compositeAccessories(
-      generatedBuffer, accessoryItems, safeGender, ANGLE_MAP[angle] || "front"
-    )
-
     // ─── Compress & cache ───
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    const jpegBuffer = await sharp(compositedBuffer)
+    const jpegBuffer = await sharp(generatedBuffer)
       .jpeg({ quality: 85, progressive: true })
       .toBuffer()
 
