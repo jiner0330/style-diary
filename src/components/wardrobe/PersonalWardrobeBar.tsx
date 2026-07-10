@@ -108,8 +108,8 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
   const isEmpty = items.length === 0
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
 
     setUploading(true)
     try {
@@ -120,22 +120,39 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
         return
       }
 
-      const formData = new FormData()
-      formData.append("file", file)
+      let success = 0
+      let fail = 0
 
-      const res = await fetch("/api/wardrobe", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      })
-      const data = await res.json()
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData()
+        formData.append("file", files[i])
 
-      if (!res.ok) {
-        toast.error(data.error || "上传失败")
-        return
+        try {
+          const res = await fetch("/api/wardrobe", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          })
+          const data = await res.json()
+
+          if (res.ok) {
+            success++
+          } else {
+            fail++
+            console.error(`上传 ${files[i].name} 失败:`, data.error)
+          }
+        } catch {
+          fail++
+        }
       }
 
-      toast.success("上传成功！")
+      if (fail === 0) {
+        toast.success(`已上传 ${success} 件`)
+      } else if (success > 0) {
+        toast.success(`上传 ${success} 件，${fail} 件失败`)
+      } else {
+        toast.error("上传失败，请重试")
+      }
       refresh()
     } catch (err: any) {
       toast.error(err.message || "上传失败，请重试")
@@ -206,6 +223,7 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          multiple
           className="hidden"
           onChange={handleFileChange}
         />
@@ -245,6 +263,7 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={handleFileChange}
       />
