@@ -90,7 +90,8 @@ function ClickableThumb({ item, onClick, onDelete }: { item: ClothingItem; onCli
 export default function PersonalWardrobeBar({ onItemClick, compact = false }: Props) {
   const router = useRouter()
   const { items, loading, refresh, deleteItem } = usePersonalWardrobe()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
   async function handleDelete(item: ClothingItem, e: React.MouseEvent) {
@@ -158,22 +159,23 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
       toast.error(err.message || "上传失败，请重试")
     } finally {
       setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ""
+      if (cameraInputRef.current) cameraInputRef.current.value = ""
+      if (galleryInputRef.current) galleryInputRef.current.value = ""
     }
   }
 
-  function triggerUpload(capture?: boolean) {
-    const input = fileInputRef.current
-    if (!input) return
-    if (capture) input.setAttribute("capture", "environment")
-    else input.removeAttribute("capture")
-    input.click()
+  function triggerCamera() {
+    cameraInputRef.current?.click()
+  }
+
+  function triggerGallery() {
+    galleryInputRef.current?.click()
   }
 
   const UploadBtns = (
     <div className="flex gap-2">
       <button
-        onClick={() => triggerUpload(true)}
+        onClick={triggerCamera}
         disabled={uploading}
         className="text-[11px] px-3 py-1.5 rounded-full bg-rose/5 text-rose/70
                    hover:bg-rose/10 hover:text-rose transition-colors disabled:opacity-50"
@@ -181,7 +183,7 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
         {uploading ? "上传中..." : "📷 拍照"}
       </button>
       <button
-        onClick={() => triggerUpload(false)}
+        onClick={triggerGallery}
         disabled={uploading}
         className="text-[11px] px-3 py-1.5 rounded-full bg-rose/5 text-rose/70
                    hover:bg-rose/10 hover:text-rose transition-colors disabled:opacity-50"
@@ -220,7 +222,15 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
           )}
         </div>
         <input
-          ref={fileInputRef}
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <input
+          ref={galleryInputRef}
           type="file"
           accept="image/*"
           multiple
@@ -260,7 +270,15 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
         )}
       </div>
       <input
-        ref={fileInputRef}
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <input
+        ref={galleryInputRef}
         type="file"
         accept="image/*"
         multiple
