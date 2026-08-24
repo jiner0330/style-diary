@@ -18,9 +18,21 @@ export const viewport: Viewport = {
   userScalable: false,
 }
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://dada-ai.cn"
+
 export const metadata: Metadata = {
-  title: "搭搭 - 你的私人AI造型师",
-  description: "10秒出搭配，为每个重要时刻找到属于你的穿搭方案",
+  metadataBase: new URL(SITE_URL),
+  title: "搭搭 - 把你衣柜里的衣服搭出好方案",
+  description: "约会、通勤、日常，基于你真实衣橱的智能搭配。不推荐你买新衣服，帮你把已有的衣服搭好。",
+  openGraph: {
+    title: "搭搭 - 把你衣柜里的衣服搭出好方案",
+    description: "约会、通勤、日常，基于你真实衣橱的智能搭配。不推荐你买新衣服，帮你把已有的衣服搭好。",
+    url: SITE_URL,
+    type: "website",
+    locale: "zh_CN",
+    siteName: "搭搭",
+    images: [{ url: "/showcase-1.jpg", width: 900, height: 1200, alt: "搭搭 AI 搭配效果示例" }],
+  },
 }
 
 export default function RootLayout({

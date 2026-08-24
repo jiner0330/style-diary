@@ -36,8 +36,8 @@ export default function Home() {
       {/* Hero */}
       <div className="flex flex-col items-center gap-1 mb-8">
         <h1 className="text-3xl font-semibold tracking-[0.2em] text-charcoal">搭搭</h1>
-        <p className="text-[15px] text-charcoal/70 font-medium mt-2">你的私人AI造型师</p>
-        <p className="text-[13px] text-warm-gray">10秒出搭配</p>
+        <p className="text-[15px] text-charcoal/70 font-medium mt-2">把你衣柜里的衣服，搭出好方案</p>
+        <p className="text-[13px] text-warm-gray">约会 · 通勤 · 日常，基于你真实衣橱的智能搭配</p>
       </div>
 
       {/* 性别选择卡片 */}
