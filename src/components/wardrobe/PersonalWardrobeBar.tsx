@@ -1,10 +1,9 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 import { useDraggable } from "@dnd-kit/core"
 import type { ClothingItem } from "@/types"
-import { usePersonalWardrobe } from "@/hooks/usePersonalWardrobe"
+import { usePersonalWardrobe, saveGuestItem } from "@/hooks/usePersonalWardrobe"
 import { getAuthToken } from "@/lib/supabase"
 import toast from "react-hot-toast"
 
@@ -88,7 +87,6 @@ function ClickableThumb({ item, onClick, onDelete }: { item: ClothingItem; onCli
 }
 
 export default function PersonalWardrobeBar({ onItemClick, compact = false }: Props) {
-  const router = useRouter()
   const { items, loading, refresh, deleteItem } = usePersonalWardrobe()
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -115,11 +113,7 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
     setUploading(true)
     try {
       const token = await getAuthToken()
-      if (!token) {
-        toast.error("请先登录")
-        router.push(`/auth?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
-        return
-      }
+      const uploadedItems: ClothingItem[] = []
 
       let success = 0
       let fail = 0
@@ -131,13 +125,14 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
         try {
           const res = await fetch("/api/wardrobe", {
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: formData,
           })
           const data = await res.json()
 
           if (res.ok) {
             success++
+            if (data.item) uploadedItems.push(data.item)
           } else {
             fail++
             console.error(`上传 ${files[i].name} 失败:`, data.error)
@@ -145,6 +140,11 @@ export default function PersonalWardrobeBar({ onItemClick, compact = false }: Pr
         } catch {
           fail++
         }
+      }
+
+      // 游客：把识别结果存到本地衣橱（登录后再同步云端）
+      if (!token && uploadedItems.length > 0) {
+        uploadedItems.forEach((item) => saveGuestItem(item))
       }
 
       if (fail === 0) {

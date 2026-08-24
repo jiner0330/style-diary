@@ -11,19 +11,28 @@ function getToken(request: NextRequest): string | null {
   return null
 }
 
+// 品类 → 渲染层级（和 mock-data 保持一致）
+const LAYER_ORDER: Record<string, number> = {
+  dress: 1, top: 2, bottom: 3, outerwear: 4, shoes: 5, bag: 6, accessory: 7,
+}
+
 export async function POST(request: NextRequest) {
   try {
     const token = getToken(request)
-    if (!token) {
-      return NextResponse.json({ error: "请先登录" }, { status: 401 })
-    }
+    const isGuest = !token
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    })
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
-    if (authErr || !user) {
-      return NextResponse.json({ error: "请先登录" }, { status: 401 })
+    // 游客用 anon key（无用户 token，走匿名桶策略）；登录用户带用户 token
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, token
+      ? { global: { headers: { Authorization: `Bearer ${token}` } } }
+      : {})
+
+    let userId: string | null = null
+    if (token) {
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
+      if (authErr || !user) {
+        return NextResponse.json({ error: "请先登录" }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const formData = await request.formData()
@@ -38,20 +47,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "仅支持 JPG/PNG/WebP/HEIC 格式" }, { status: 400 })
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: "图片大小不能超过 10MB" }, { status: 400 })
+    // 游客限 5MB，登录 10MB
+    const maxSize = isGuest ? 5 * 1024 * 1024 : 10 * 1024 * 1024
+    if (file.size > maxSize) {
+      return NextResponse.json({ error: isGuest ? "图片大小不能超过 5MB" : "图片大小不能超过 10MB" }, { status: 400 })
     }
 
-    const userId = user.id
     const fileExt = file.name.split(".").pop() || "jpg"
     const itemId = crypto.randomUUID()
-    const storagePath = `${userId}/${itemId}.${fileExt}`
+    const bucketName = isGuest ? "guest-wardrobe" : "wardrobe"
+    const storagePath = isGuest ? `${itemId}.${fileExt}` : `${userId}/${itemId}.${fileExt}`
 
     // 1. 上传到 Storage
     const buffer = await file.arrayBuffer()
-    console.log(`[upload] step1: buffer=${(buffer.byteLength/1024).toFixed(0)}KB type=${file.type} name=${file.name}`)
+    console.log(`[upload] step1: buffer=${(buffer.byteLength/1024).toFixed(0)}KB type=${file.type} name=${file.name} guest=${isGuest}`)
     const { error: uploadError } = await supabase.storage
-      .from("wardrobe")
+      .from(bucketName)
       .upload(storagePath, buffer, {
         contentType: file.type,
         upsert: false,
@@ -63,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: urlData } = supabase.storage
-      .from("wardrobe")
+      .from(bucketName)
       .getPublicUrl(storagePath)
 
     const imageUrl = urlData.publicUrl
@@ -99,7 +110,32 @@ export async function POST(request: NextRequest) {
       console.warn("[upload] step3: AI failed, using defaults:", err)
     }
 
-    // 3. 写入 clothing_items（只插入表中存在的列）
+    // 3. 游客：不落库，直接返回 item，前端存 localStorage
+    if (isGuest) {
+      const item = {
+        id: itemId,
+        owner_id: null,
+        name: itemName,
+        category,
+        sub_category,
+        color,
+        material,
+        pattern,
+        fit,
+        length,
+        neckline,
+        detail,
+        style_tags,
+        image_url: imageUrl,
+        layer_order: LAYER_ORDER[category] ?? 2,
+        occupies_full_body: category === "dress",
+        source: "user_uploaded",
+      }
+      console.log(`[upload] guest item: ${itemName} (${category})`)
+      return NextResponse.json({ item })
+    }
+
+    // 4. 登录用户：写入 clothing_items（只插入表中存在的列）
     const insertData: Record<string, unknown> = {
       user_id: userId,
       name: itemName,

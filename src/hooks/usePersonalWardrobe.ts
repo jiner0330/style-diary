@@ -6,6 +6,9 @@ import { registerPersonalItems, removePersonalItem } from "@/lib/mock-data"
 import { useOutfitStore } from "@/store/outfit"
 import type { ClothingItem } from "@/types"
 
+// 游客衣橱在 localStorage 里的 key（登录前先体验，登录后同步到云端）
+export const GUEST_WARDROBE_KEY = "sd_guest_wardrobe"
+
 // 模块级缓存：跨组件挂载保持，避免每次都从 loading 骨架开始
 let cachedItems: ClothingItem[] | null = null
 
@@ -19,6 +22,23 @@ export function getCachedWardrobeItems(): ClothingItem[] {
   return cachedItems || []
 }
 
+/** 读游客本地衣橱 */
+function readGuestWardrobe(): ClothingItem[] {
+  try {
+    return JSON.parse(localStorage.getItem(GUEST_WARDROBE_KEY) || "[]") as ClothingItem[]
+  } catch {
+    return []
+  }
+}
+
+/** 游客上传后，把新单品写入本地衣橱（置顶） */
+export function saveGuestItem(item: ClothingItem) {
+  try {
+    const items = readGuestWardrobe()
+    localStorage.setItem(GUEST_WARDROBE_KEY, JSON.stringify([item, ...items]))
+  } catch {}
+}
+
 export function usePersonalWardrobe() {
   const [items, setItems] = useState<ClothingItem[]>(cachedItems || [])
   const [loading, setLoading] = useState(!cachedItems)
@@ -27,7 +47,11 @@ export function usePersonalWardrobe() {
     try {
       const token = await getAuthToken()
       if (!token) {
-        setItems([])
+        // 游客：读 localStorage 本地衣橱
+        const guestItems = readGuestWardrobe()
+        cachedItems = guestItems
+        setItems(guestItems)
+        if (guestItems.length > 0) registerPersonalItems(guestItems)
         setLoading(false)
         return
       }
@@ -59,13 +83,19 @@ export function usePersonalWardrobe() {
 
   const deleteItem = useCallback(async (id: string) => {
     const token = await getAuthToken()
-    if (!token) return false
-    const res = await fetch(`/api/wardrobe?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) return false
-    // 从缓存、统一查找表和状态中移除
+    if (!token) {
+      // 游客：从 localStorage 移除
+      try {
+        localStorage.setItem(GUEST_WARDROBE_KEY, JSON.stringify(readGuestWardrobe().filter((i) => i.id !== id)))
+      } catch {}
+    } else {
+      const res = await fetch(`/api/wardrobe?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return false
+    }
+    // 共同：从缓存、统一查找表和状态中移除
     removePersonalItem(id)
     cachedItems = cachedItems?.filter((i) => i.id !== id) || null
     setItems((prev) => prev.filter((i) => i.id !== id))
