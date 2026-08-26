@@ -115,25 +115,24 @@ export default function WardrobePage() {
   }
 
   return (
-    <div className="flex flex-col flex-1">
-      {/* 顶部 */}
-      <div className="flex items-center justify-between px-5 pt-6 pb-1">
-        <h1 className="text-xl font-semibold text-charcoal tracking-wider">我的衣橱</h1>
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="px-4 py-2 rounded-xl bg-rose text-soft-white text-sm font-medium disabled:opacity-60"
-          style={{ touchAction: "manipulation" }}
-        >
-          {uploading ? "上传中..." : "📷 上传"}
-        </button>
-      </div>
-      <p className="text-xs text-warm-gray px-5 mb-4">勾选要搭的单品</p>
+    <>
+      {/* 内容区：自然滚动，pb-24 给固定输入框留空间 */}
+      <div className="flex flex-col flex-1 px-5 pt-6 pb-24">
+        <div className="flex items-center justify-between pb-1">
+          <h1 className="text-xl font-semibold text-charcoal tracking-wider">我的衣橱</h1>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="px-4 py-2 rounded-xl bg-rose text-soft-white text-sm font-medium disabled:opacity-60"
+            style={{ touchAction: "manipulation" }}
+          >
+            {uploading ? "上传中..." : "📷 上传"}
+          </button>
+        </div>
+        <p className="text-xs text-warm-gray mb-4">勾选要搭的单品</p>
 
-      {/* 滚动内容：空状态 / 品类分组 / 回复 */}
-      <div className="flex-1 overflow-y-auto px-5 pb-4">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16">
             <p className="text-3xl">👕</p>
@@ -150,10 +149,7 @@ export default function WardrobePage() {
           </div>
         ) : (
           <>
-            {/* 搭搭回复 */}
             {reply && <ReplySection reply={reply} />}
-
-            {/* 按品类分组 */}
             {groups.map((g) => (
               <div key={g.cat} className="mb-4">
                 <h2 className="text-sm font-medium text-charcoal/70 mb-2">{g.label}</h2>
@@ -173,8 +169,8 @@ export default function WardrobePage() {
         )}
       </div>
 
-      {/* 底部常驻输入框 */}
-      <div className="px-5 py-3 border-t border-warm-gray/20 bg-soft-white/60">
+      {/* 固定底部输入框 */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto px-5 py-3 border-t border-warm-gray/20 bg-soft-white shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
         <div className="flex gap-2 items-center">
           <input
             value={input}
@@ -194,7 +190,7 @@ export default function WardrobePage() {
           </button>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
