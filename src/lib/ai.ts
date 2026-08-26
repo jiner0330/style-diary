@@ -159,7 +159,7 @@ const COLOR_NAME_TO_HEX: Record<string, string> = {
   "姜黄": "#DDA040", "豆沙粉": "#C4A8A3",
 }
 
-async function prepareImageSrc(input: string | ArrayBuffer, _mimeType: string): Promise<string> {
+async function prepareImageSrc(input: string | ArrayBuffer | Uint8Array, _mimeType: string): Promise<string> {
   if (typeof input === "string") return input
 
   // Resize to max 1024px, convert to JPEG (always use image/jpeg regardless of input format)
@@ -173,7 +173,7 @@ async function prepareImageSrc(input: string | ArrayBuffer, _mimeType: string): 
   return `data:image/jpeg;base64,${base64}`
 }
 
-export async function classifyClothing(input: string | ArrayBuffer, mimeType = "image/jpeg"): Promise<ClassifyResult> {
+export async function classifyClothing(input: string | ArrayBuffer | Uint8Array, mimeType = "image/jpeg"): Promise<ClassifyResult> {
   const imageSrc = await prepareImageSrc(input, mimeType)
 
   const body = {

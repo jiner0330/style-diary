@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { classifyClothing } from "@/lib/ai"
+import sharp from "sharp"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -53,18 +54,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: isGuest ? "图片大小不能超过 5MB" : "图片大小不能超过 10MB" }, { status: 400 })
     }
 
-    const fileExt = file.name.split(".").pop() || "jpg"
     const itemId = crypto.randomUUID()
     const bucketName = isGuest ? "guest-wardrobe" : "wardrobe"
+    const fileExt = "jpg"
     const storagePath = isGuest ? `${itemId}.${fileExt}` : `${userId}/${itemId}.${fileExt}`
 
-    // 1. 上传到 Storage
-    const buffer = await file.arrayBuffer()
-    console.log(`[upload] step1: buffer=${(buffer.byteLength/1024).toFixed(0)}KB type=${file.type} name=${file.name} guest=${isGuest}`)
+    // 1. 压缩图片（max 1024px + JPEG 80%）→ 上传到 Storage，降低跨境加载体积
+    const rawBuffer = await file.arrayBuffer()
+    const buffer = await sharp(Buffer.from(rawBuffer))
+      .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer()
+    console.log(`[upload] step1: raw=${(rawBuffer.byteLength/1024).toFixed(0)}KB → compressed=${(buffer.length/1024).toFixed(0)}KB type=${file.type} guest=${isGuest}`)
     const { error: uploadError } = await supabase.storage
       .from(bucketName)
       .upload(storagePath, buffer, {
-        contentType: file.type,
+        contentType: "image/jpeg",
         upsert: false,
       })
 
@@ -93,7 +98,7 @@ export async function POST(request: NextRequest) {
     let length: string | null = null
     let neckline: string | null = null
     try {
-      const result = await classifyClothing(buffer, file.type)
+      const result = await classifyClothing(buffer, "image/jpeg")
       category = result.category
       itemName = result.name
       sub_category = result.sub_category
