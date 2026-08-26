@@ -39,6 +39,24 @@ export function saveGuestItem(item: ClothingItem) {
   } catch {}
 }
 
+/** 登录后把游客本地衣橱迁移到云端，成功则清空本地（不阻塞主流程） */
+async function migrateGuestWardrobe(token: string) {
+  const guestItems = readGuestWardrobe()
+  if (guestItems.length === 0) return
+  try {
+    const res = await fetch("/api/wardrobe/migrate", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ items: guestItems }),
+    })
+    if (res.ok) {
+      localStorage.removeItem(GUEST_WARDROBE_KEY)
+    }
+  } catch (e) {
+    console.warn("[usePersonalWardrobe] migrate guest wardrobe failed:", e)
+  }
+}
+
 export function usePersonalWardrobe() {
   const [items, setItems] = useState<ClothingItem[]>(cachedItems || [])
   const [loading, setLoading] = useState(!cachedItems)
@@ -55,6 +73,8 @@ export function usePersonalWardrobe() {
         setLoading(false)
         return
       }
+      // 登录态：先把游客期间上传的本地衣橱迁移到云端
+      await migrateGuestWardrobe(token)
       const res = await fetch("/api/wardrobe", {
         headers: { Authorization: `Bearer ${token}` },
       })
