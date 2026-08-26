@@ -2,14 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
 import type { Scene } from "@/types"
 import SceneIllustration from "@/components/scene/SceneIllustration"
 import toast from "react-hot-toast"
 
 export default function ScenesPage() {
   const [scenes, setScenes] = useState<Scene[]>([])
-  const [completedCount, setCompletedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -22,34 +20,6 @@ export default function ScenesPage() {
       if (!res.ok) throw new Error("场景加载失败")
       const data = await res.json()
       setScenes(data.scenes || [])
-
-      // 收集已参与的场景：生图记录（localStorage）+ 保存记录（Supabase）
-      const engagedScenes = new Set<string>()
-
-      // 1. 从 localStorage 生图记录中提取场景
-      if (typeof window !== "undefined") {
-        try {
-          const gh = JSON.parse(localStorage.getItem("sd_gen_history") || "[]")
-          gh.forEach((g: any) => { if (g.sceneId) engagedScenes.add(g.sceneId) })
-        } catch { /* ignore */ }
-      }
-
-      // 2. 登录用户额外计入 Supabase 中的保存记录
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data: outfits, error: outfitsErr } = await supabase
-            .from("outfits")
-            .select("scene_id")
-            .eq("user_id", user.id)
-
-          if (!outfitsErr && outfits) {
-            outfits.forEach((o) => { if (o.scene_id) engagedScenes.add(o.scene_id) })
-          }
-        }
-      } catch { /* guest — skip */ }
-
-      setCompletedCount(engagedScenes.size)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "加载失败"
       setError(message)
@@ -99,31 +69,11 @@ export default function ScenesPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {scenes.map((scene) => {
-          const unlocked = completedCount >= scene.unlock_condition
-          return (
-            <div key={scene.id} className="relative">
-              {unlocked ? (
-                <Link href={`/scenes/${scene.id}`}>
-                  <SceneCard scene={scene} />
-                </Link>
-              ) : (
-                <div className="opacity-50 cursor-not-allowed">
-                  <SceneCard scene={scene} />
-                  <div className="absolute inset-0 flex items-center justify-center
-                                  bg-soft-white/60 rounded-2xl">
-                    <div className="text-center">
-                      <span className="text-2xl">🔒</span>
-                      <p className="text-xs text-warm-gray mt-1">
-                        完成 {scene.unlock_condition} 个场景后解锁
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {scenes.map((scene) => (
+          <Link key={scene.id} href={`/scenes/${scene.id}`}>
+            <SceneCard scene={scene} />
+          </Link>
+        ))}
       </div>
     </div>
   )

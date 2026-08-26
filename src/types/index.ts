@@ -28,7 +28,6 @@ export interface Scene {
   name: string
   story_text: string
   mood_tags: string[]
-  unlock_condition: number
   illustration_url: string | null
   ambient_sound_url: string | null
   sort_order: number

@@ -114,7 +114,7 @@ function DressingContent() {
   const sceneSavedOutfits = savedOutfits.filter((s) => s.sceneId === sceneId && s.gender === resolvedGender)
   const sceneGenerationHistory = generationHistory.filter((g) => g.sceneId === sceneId && g.gender === resolvedGender)
 
-  // 保存搭配到 localStorage + Supabase（场景解锁需要 outfit 记录）
+  // 保存搭配到 localStorage + Supabase
   async function saveOutfit(name: string) {
     saveOutfitLocal(name, sceneId, resolvedGender)
     if (!sceneId) return
@@ -1236,8 +1236,8 @@ function DressingContent() {
         <div className="absolute inset-0 bg-black/40" onClick={() => setGuestSaveDialogOpen(false)} />
         <div className="relative bg-soft-white rounded-2xl shadow-xl w-full max-w-xs p-6 z-10 text-center">
           <p className="text-3xl mb-3">🎉</p>
-          <h3 className="text-sm font-medium text-charcoal mb-1">喜欢这套搭配吗？</h3>
-          <p className="text-xs text-warm-gray/60 mb-5">注册后可随时查看和回顾你的搭配</p>
+          <h3 className="text-sm font-medium text-charcoal mb-1">登录后永久保存</h3>
+          <p className="text-xs text-warm-gray/60 mb-5">你上传的衣服和这套搭配，现在只在这台设备上，登录后换设备也不丢</p>
           <div className="flex gap-3">
             <button
               onClick={() => {
@@ -1259,7 +1259,7 @@ function DressingContent() {
               className="flex-1 py-2.5 rounded-xl text-sm text-white bg-rose
                          hover:bg-rose/90 transition-colors font-medium"
             >
-              注册保存
+              登录保存
             </button>
           </div>
         </div>
