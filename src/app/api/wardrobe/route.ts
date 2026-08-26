@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     let length: string | null = null
     let neckline: string | null = null
     try {
-      const result = await classifyClothing(buffer, "image/jpeg")
+      const result = await classifyClothing(rawBuffer, file.type)
       category = result.category
       itemName = result.name
       sub_category = result.sub_category
