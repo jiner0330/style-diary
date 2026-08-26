@@ -18,7 +18,7 @@ interface Plan {
   name?: string
   score?: number
   reason?: string
-  items?: Array<{ name?: string; category?: string; color?: string; style_tags?: string[] }>
+  items?: Array<{ name?: string; category?: string; color?: string; style_tags?: string[]; source?: string }>
 }
 
 export default function WardrobePage() {
@@ -149,7 +149,7 @@ export default function WardrobePage() {
           </div>
         ) : (
           <>
-            {reply && <ReplySection reply={reply} />}
+            {reply && <ReplySection reply={reply} wardrobeItems={items.filter((i) => selected.has(i.id))} />}
             {groups.map((g) => (
               <div key={g.cat} className="mb-4">
                 <h2 className="text-sm font-medium text-charcoal/70 mb-2">{g.label}</h2>
@@ -194,7 +194,7 @@ export default function WardrobePage() {
   )
 }
 
-function ReplySection({ reply }: { reply: { content: string; plans: Plan[] } }) {
+function ReplySection({ reply, wardrobeItems }: { reply: { content: string; plans: Plan[] }; wardrobeItems: ClothingItem[] }) {
   return (
     <div className="mb-4 space-y-3">
       {reply.content && <p className="text-sm text-charcoal/80 whitespace-pre-wrap">{reply.content}</p>}
@@ -205,17 +205,54 @@ function ReplySection({ reply }: { reply: { content: string; plans: Plan[] } }) 
             {p.score != null && <span className="text-xs text-rose font-medium">{p.score} 分</span>}
           </div>
           {p.reason && <p className="text-xs text-warm-gray mb-2">{p.reason}</p>}
-          <div className="flex flex-wrap gap-1.5">
-            {p.items?.map((it, j) => (
-              <span key={j} className="text-[11px] px-2 py-1 rounded-full bg-cream/60 text-charcoal/70">
-                {it.name || it.category}
-              </span>
-            ))}
+
+          {/* 单品：你的（有图）vs 建议补充（文字虚线框） */}
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {p.items?.map((it, j) => {
+              const isUser = it.source === "user"
+              const img = isUser ? matchImage(it.name || "", wardrobeItems) : undefined
+              return (
+                <div
+                  key={j}
+                  className={`rounded-lg overflow-hidden border ${isUser ? "border-rose/30 bg-cream/40" : "border-dashed border-warm-gray/40 bg-white"}`}
+                >
+                  {img ? (
+                    <div className="aspect-square">
+                      <img src={img} alt={it.name} className="w-full h-full object-cover" draggable={false} />
+                    </div>
+                  ) : (
+                    <div className="aspect-square flex items-center justify-center text-[10px] text-warm-gray/70 text-center px-1 leading-tight">
+                      {it.name}
+                    </div>
+                  )}
+                  <div className="px-1.5 py-1">
+                    <p className="text-[10px] text-charcoal/80 truncate">{it.name}</p>
+                    <p className={`text-[9px] font-medium ${isUser ? "text-rose" : "text-warm-gray"}`}>
+                      {isUser ? "你的" : "建议补充"}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* 占位条：效果图生成中（异步生图 P1 补上） */}
+          <div className="rounded-lg border border-dashed border-rose/30 bg-rose/5 px-3 py-2.5 flex items-center justify-between">
+            <span className="text-[11px] text-rose font-medium">效果图生成中…</span>
+            <span className="text-[10px] text-warm-gray">预计 1 分钟</span>
           </div>
         </div>
       ))}
     </div>
   )
+}
+
+function matchImage(name: string, wardrobe: ClothingItem[]): string | undefined {
+  if (!name || wardrobe.length === 0) return undefined
+  const exact = wardrobe.find((w) => w.name === name)
+  if (exact?.image_url) return exact.image_url
+  const fuzzy = wardrobe.find((w) => name.includes(w.name) || w.name.includes(name))
+  return fuzzy?.image_url ?? undefined
 }
 
 function WardrobeGridItem({ item, selected, onToggle }: { item: ClothingItem; selected: boolean; onToggle: () => void }) {
