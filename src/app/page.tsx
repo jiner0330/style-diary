@@ -48,7 +48,7 @@ export default function Home() {
       const data = await res.json()
       if (res.ok && data.item) {
         if (!token) saveGuestItem(data.item)
-        router.push("/dressing")
+        router.push("/wardrobe")
       } else {
         toast.error(data.error || "上传失败，请重试")
       }

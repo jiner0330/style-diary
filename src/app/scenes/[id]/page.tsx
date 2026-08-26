@@ -104,12 +104,12 @@ export default function SceneDetailPage() {
         {/* 操作按钮 */}
         <div className="space-y-3">
           <button
-            onClick={() => router.push(`/dressing?id=${scene.id}`)}
+            onClick={() => router.push("/wardrobe")}
             className="w-full py-4 rounded-2xl bg-charcoal text-soft-white font-medium
                        tracking-wide transition-all active:scale-[0.98]
                        text-lg"
           >
-            开始搭配
+            去衣橱搭配
           </button>
         </div>
       </div>
