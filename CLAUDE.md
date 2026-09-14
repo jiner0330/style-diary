@@ -181,7 +181,7 @@ git ls-files -s | grep "^120000"
 ### 核心原则
 
 Vercel hkg1（香港）节点无法稳定访问中国大陆服务，必须将国内/境外调用分离到不同服务器：
-- **国内服务**（阿里云 SMS、Supabase 上海）→ 阿里云 FC 上海 或 客户端直连
+- **国内服务**（阿里云 SMS、Supabase 上海、火山方舟 Seedream）→ 阿里云 FC 上海 或 客户端直连
 - **境外服务**（ofox.ai、DeepSeek）→ Vercel HK
 
 ### 当前架构
@@ -189,7 +189,7 @@ Vercel hkg1（香港）节点无法稳定访问中国大陆服务，必须将国
 ```
 浏览器（国内）
   ├─ ESA 边缘加速（dada-ai.cn / www）→ origin → Vercel HK → DeepSeek / ofox.ai（境外）
-  ├─ 阿里云 FC 上海 → 阿里云 SMS + Supabase 上海（同城）
+  ├─ 阿里云 FC 上海 → 阿里云 SMS + Supabase 上海 + Seedream（北京，同地域）
   └─ supabase-js 客户端直连 → Supabase 上海
 ```
 
@@ -199,7 +199,7 @@ Vercel hkg1（香港）节点无法稳定访问中国大陆服务，必须将国
 
 **根因**：Vercel hkg1 → 阿里云 `dypnsapi.aliyuncs.com` 间歇性 ConnectTimeout，Vercel hkg1 → Supabase `vklltmfmttuaahqmwksu.supabase.co` 持续 ENOTFOUND DNS 解析失败。同一个 Vercel 节点无法同时服务国内和境外链路。
 
-**解决方案**：将 `send-sms` 和 `verify-sms` 两个函数从 Vercel 拆出，独立部署到阿里云函数计算（Web 函数、Node.js 22、上海区域）。前端通过 `NEXT_PUBLIC_FC_SEND_SMS_URL` 和 `NEXT_PUBLIC_FC_VERIFY_SMS_URL` 直调 FC 公网 URL。
+**解决方案**：将 `send-sms` 和 `verify-sms` 两个函数从 Vercel 拆出，独立部署到阿里云函数计算（Web 函数、Node.js 22、上海区域）。前端通过 `NEXT_PUBLIC_FC_SEND_SMS_URL` 和 `NEXT_PUBLIC_FC_VERIFY_SMS_URL` 直调 FC 自定义域名。
 
 **SDK 兼容问题**：`@alicloud/dypnsapi20170525` 在 CommonJS `require` 下的正确用法：
 ```javascript
@@ -215,12 +215,28 @@ const { SendSmsVerifyCodeRequest, CheckSmsVerifyCodeRequest } = require("@aliclo
 - 函数代码需显式 `http.createServer` + `server.listen(FC_SERVER_PORT || 9000)` 常驻进程
 - 在线编辑器部署不自动 `npm install`，需上传含 node_modules 的 zip 包
 
+### 生图 FC 迁移（2026-06-30）
+
+**问题**：`/api/generate-outfit` 从 Vercel HK 直调火山方舟（`ark.cn-beijing.volces.com`）间歇性超时，Vercel Hobby 60s 函数上限无重试空间。
+
+**解决方案**：将生图逻辑从 Vercel API Route 拆出，独立部署到阿里云 FC（Web 函数、Node.js 22、上海区域）。FC 上海 → 火山方舟北京走国内骨干网，延迟稳定。前端通过 `NEXT_PUBLIC_FC_GENERATE_OUTFIT_URL` 直调 FC 自定义域名，Vercel 端 `/api/generate-outfit` 保留为 fallback。
+
+**FC 部署要点**（在 send-sms/verify-sms 基础上补充）：
+- 超时设 300s（Pro 实例），生图含重试最长 170s
+- 内存 1024MB（sharp 图片处理需要）
+- 重试策略：失败透明重试最多 3 次，间隔 2s
+- 轮询模式：POST 同步调用（非异步轮询），浏览器直接等待 FC 返回
+- 环境变量：`VOLCENGINE_KEY`、`SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_KEY`
+- Vercel 端 `/api/generate-outfit`（Route Handler 版本）与 FC 版本代码独立维护，功能对齐但实现不同（Vercel 版用 TypeScript + undici Agent，FC 版用 CommonJS + 原生 fetch）
+
 ### 已验证的调用
 
 | 调用 | 路径 | 状态 |
 |------|------|:--:|
 | `/api/chat` → `supabase.auth.getUser()` | Vercel HK → Supabase 上海 | ✅ 已验证 (2026-06-29) |
 | `/api/weather` → 和风天气 | Vercel HK → 和风天气 | ✅ 已验证 (2026-06-29) |
+| 浏览器 → FC 上海 → 火山方舟 Seedream | `NEXT_PUBLIC_FC_GENERATE_OUTFIT_URL` | ✅ 已验证 (2026-06-30) |
+| `/api/generate-outfit`（fallback）→ 火山方舟 | Vercel HK → Seedream 北京 | ⚠️ 不稳定，仅 fallback |
 
 ### ESA 生产架构（2026-06-29 上线）
 
@@ -244,7 +260,16 @@ ESA（阿里云边缘安全加速）已部署在 Vercel 前方，承接 `dada-ai
 
 - `fc-functions/send-sms/` — 短信发送（阿里云 FC）
 - `fc-functions/verify-sms/` — 验证码校验 + Supabase 用户创建（阿里云 FC）
-- 部署方式：本地 `npm install --production` 后打包 zip，上传到阿里云 FC
+- `fc-functions/generate-outfit/` — 搭配效果图生图（阿里云 FC 上海）→ 火山方舟 Seedream 4.0（北京）
+
+部署方式：本地 `npm install --production` 后打包 zip，上传到阿里云 FC 控制台。
+
+**FC 函数需要配置自定义域名**：FC 分配的默认公网 URL（`*.fc.aliyuncs.com`）不能直接用于生产。需要：
+1. 在阿里云 FC 控制台 → 函数 → 触发器管理 → 为 HTTP 触发器绑定自定义域名
+2. 在域名 DNS 控制台添加 CNAME 解析，指向 FC 提供的域名
+3. 上传 SSL 证书（阿里云免费证书或 Let's Encrypt）
+4. 前端通过自定义域名（`NEXT_PUBLIC_FC_*_URL` 环境变量）直调 FC 函数
+5. Vercel 端在项目 Settings → Environment Variables 中配置相同变量值
 
 ## `https.Agent` timeout 不控制连接超时
 
