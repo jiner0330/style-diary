@@ -48,3 +48,9 @@ next-env.d.ts
 fc-functions/**/node_modules/
 fc-functions/**/package-lock.json
 fc-functions/**/*.zip
+
+# 根目录 FC 部署包（134MB 二进制，勿提交）
+generate-outfit.zip
+
+# supabase CLI 本地状态
+supabase/.temp/
