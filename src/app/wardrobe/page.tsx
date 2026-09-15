@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { usePersonalWardrobe, saveGuestItem } from "@/hooks/usePersonalWardrobe"
 import { getAuthToken } from "@/lib/supabase"
 import type { ClothingItem } from "@/types"
@@ -21,14 +21,27 @@ interface Plan {
   items?: Array<{ name?: string; category?: string; color?: string; style_tags?: string[]; source?: string }>
 }
 
+interface Msg {
+  role: "user" | "assistant"
+  content: string
+  plans?: Plan[]
+}
+
 export default function WardrobePage() {
   const { items, loading, refresh } = usePersonalWardrobe()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [uploading, setUploading] = useState(false)
   const [input, setInput] = useState("")
   const [asking, setAsking] = useState(false)
-  const [reply, setReply] = useState<{ content: string; plans: Plan[] } | null>(null)
+  const [messages, setMessages] = useState<Msg[]>([])
+  const [view, setView] = useState<"wardrobe" | "chat">("wardrobe")
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // 新消息 / 加载中时自动滚到底部
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+  }, [messages, asking])
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -71,7 +84,9 @@ export default function WardrobePage() {
     const text = input.trim()
     if (!text || asking) return
     setAsking(true)
-    setReply(null)
+    setMessages((prev) => [...prev, { role: "user", content: text }])
+    setInput("")
+    setView("chat")
     try {
       const token = await getAuthToken()
       const selectedItems = items.filter((i) => selected.has(i.id))
@@ -94,9 +109,9 @@ export default function WardrobePage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "请求失败")
-      setReply({ content: data.content || "", plans: data.plans || [] })
+      setMessages((prev) => [...prev, { role: "assistant", content: data.content || "", plans: data.plans || [] }])
     } catch (e: any) {
-      toast.error(e.message || "请求失败，请稍后重试")
+      setMessages((prev) => [...prev, { role: "assistant", content: `抱歉，搭配服务暂时出错了：${e.message}。请稍后重试～` }])
     } finally {
       setAsking(false)
     }
@@ -116,67 +131,125 @@ export default function WardrobePage() {
 
   return (
     <>
-      {/* 内容区：自然滚动，pb-24 给固定输入框留空间 */}
-      <div className="flex flex-col flex-1 px-5 pt-6 pb-24">
-        <div className="flex items-center justify-between pb-1">
-          <h1 className="text-xl font-semibold text-charcoal tracking-wider">我的衣橱</h1>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="px-4 py-2 rounded-xl bg-rose text-soft-white text-sm font-medium disabled:opacity-60"
-            style={{ touchAction: "manipulation" }}
-          >
-            {uploading ? "上传中..." : "📷 上传"}
-          </button>
-        </div>
-        <p className="text-xs text-warm-gray mb-4">勾选要搭的单品</p>
-
-        {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-16">
-            <p className="text-3xl">👕</p>
-            <p className="text-sm text-charcoal/70">你的衣橱还是空的</p>
-            <p className="text-xs text-warm-gray">上传第一件衣服，让搭搭帮你搭</p>
+      {view === "wardrobe" ? (
+        /* ── 衣橱视图：选单品 ── */
+        <div className="flex flex-col flex-1 px-5 pt-6 pb-24">
+          <div className="flex items-center justify-between pb-1">
+            <h1 className="text-xl font-semibold text-charcoal tracking-wider">我的衣橱</h1>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="mt-1 px-5 py-2.5 rounded-xl bg-rose text-soft-white text-sm font-medium"
+              disabled={uploading}
+              className="px-4 py-2 rounded-xl bg-rose text-soft-white text-sm font-medium disabled:opacity-60"
               style={{ touchAction: "manipulation" }}
             >
-              上传第一件衣服
+              {uploading ? "上传中..." : "📷 上传"}
             </button>
           </div>
-        ) : (
-          <>
-            {reply && <ReplySection reply={reply} wardrobeItems={items.filter((i) => selected.has(i.id))} />}
-            {groups.map((g) => (
-              <div key={g.cat} className="mb-4">
-                <h2 className="text-sm font-medium text-charcoal/70 mb-2">{g.label}</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  {g.list.map((item) => (
-                    <WardrobeGridItem
-                      key={item.id}
-                      item={item}
-                      selected={selected.has(item.id)}
-                      onToggle={() => toggleSelect(item.id)}
-                    />
-                  ))}
+          <p className="text-xs text-warm-gray mb-4">勾选要搭的单品</p>
+
+          {items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <p className="text-3xl">👕</p>
+              <p className="text-sm text-charcoal/70">你的衣橱还是空的</p>
+              <p className="text-xs text-warm-gray">上传第一件衣服，让搭搭帮你搭</p>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-1 px-5 py-2.5 rounded-xl bg-rose text-soft-white text-sm font-medium"
+                style={{ touchAction: "manipulation" }}
+              >
+                上传第一件衣服
+              </button>
+            </div>
+          ) : (
+            <>
+              {groups.map((g) => (
+                <div key={g.cat} className="mb-4">
+                  <h2 className="text-sm font-medium text-charcoal/70 mb-2">{g.label}</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    {g.list.map((item) => (
+                      <WardrobeGridItem
+                        key={item.id}
+                        item={item}
+                        selected={selected.has(item.id)}
+                        onToggle={() => toggleSelect(item.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      ) : (
+        /* ── 对话视图：问搭搭 ── */
+        <div className="flex flex-col flex-1">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-warm-gray/15 bg-soft-white">
+            <button
+              type="button"
+              onClick={() => setView("wardrobe")}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-warm-gray/10 text-charcoal text-lg"
+              style={{ touchAction: "manipulation" }}
+              aria-label="返回衣橱"
+            >
+              ←
+            </button>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-charcoal">搭搭</p>
+              <p className="text-[10px] text-warm-gray/50">AI 搭配助手</p>
+            </div>
+            {selected.size > 0 && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose/10 text-rose font-medium">
+                已选 {selected.size} 件
+              </span>
+            )}
+          </div>
+
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0 pb-24">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line ${
+                    m.role === "user"
+                      ? "bg-charcoal text-soft-white rounded-br-md"
+                      : "bg-cream text-charcoal rounded-bl-md"
+                  }`}
+                >
+                  {m.role === "assistant" ? <AssistantBubble msg={m} wardrobeItems={items} /> : m.content}
                 </div>
               </div>
             ))}
-          </>
-        )}
-      </div>
 
-      {/* 固定底部输入框 */}
+            {asking && (
+              <div className="flex justify-start">
+                <div className="bg-cream rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                  <span className="text-xs text-warm-gray/60">正在搭配中...</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 固定底部输入框（两视图共用） */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto px-5 py-3 border-t border-warm-gray/20 bg-soft-white shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
         <div className="flex gap-2 items-center">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") ask() }}
-            placeholder={selected.size > 0 ? `已选 ${selected.size} 件，描述你的搭配需求…` : "描述你的搭配需求…"}
+            placeholder={
+              view === "chat"
+                ? "继续和搭搭聊…"
+                : selected.size > 0 ? `已选 ${selected.size} 件，描述你的搭配需求…` : "描述你的搭配需求…"
+            }
             className="flex-1 px-4 py-2.5 rounded-full bg-white border border-warm-gray/30 text-sm text-charcoal placeholder:text-warm-gray/60 focus:outline-none focus:border-rose/40"
           />
           <button
@@ -194,20 +267,17 @@ export default function WardrobePage() {
   )
 }
 
-function ReplySection({ reply, wardrobeItems }: { reply: { content: string; plans: Plan[] }; wardrobeItems: ClothingItem[] }) {
+function AssistantBubble({ msg, wardrobeItems }: { msg: Msg; wardrobeItems: ClothingItem[] }) {
   return (
-    <div className="mb-4 space-y-3">
-      {reply.content && <p className="text-sm text-charcoal/80 whitespace-pre-wrap">{reply.content}</p>}
-      {reply.plans.map((p, i) => (
-        <div key={i} className="rounded-xl bg-white border border-rose/20 p-4">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-sm font-semibold text-charcoal">{p.name || `方案${(p.plan || i) + 1}`}</h3>
-            {p.score != null && <span className="text-xs text-rose font-medium">{p.score} 分</span>}
-          </div>
+    <div>
+      {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
+      {msg.plans?.map((p, i) => (
+        <div key={i} className="mt-2 rounded-xl bg-soft-white border border-rose/20 p-3">
+          <h3 className="text-sm font-semibold text-charcoal mb-1">{p.name || `方案${(p.plan || i) + 1}`}</h3>
           {p.reason && <p className="text-xs text-warm-gray mb-2">{p.reason}</p>}
 
           {/* 单品：你的（有图）vs 建议补充（文字虚线框） */}
-          <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="grid grid-cols-3 gap-2 mb-2">
             {p.items?.map((it, j) => {
               const isUser = it.source === "user"
               const img = isUser ? matchImage(it.name || "", wardrobeItems) : undefined
