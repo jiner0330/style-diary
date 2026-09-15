@@ -115,6 +115,7 @@ export function getSystemPrompt(profile?: UserProfile, count: number = 2): strin
     {
       "slot": "top",
       "source": "user",
+      "ref": "单品1",
       "name": "单品中文描述名",
       "category": "top",
       "sub_category": "shirt",
@@ -135,6 +136,7 @@ export function getSystemPrompt(profile?: UserProfile, count: number = 2): strin
 
 - **slot**: dress | top | bottom | outerwear | shoes | bag | accessories
 - **source**: "user"（用户已勾选、衣橱里已有的单品）或 "suggested"（建议补充的新单品）
+- **ref**: 仅 source=user 时填写，填该单品在「用户已指定搭配单品」中的编号，格式「单品N」（如「单品1」），必须原样复制；source=suggested 时留空
 - **category**: top | bottom | dress | outerwear | shoes | bag | accessory
 - **sub_category** 必须从以下枚举中选择：
   - top: sweater | shirt | blouse | cardigan | hoodie | henley | turtleneck | off_shoulder_corset | halter | off_shoulder_ls | puff_sleeve | off_shoulder_tee | sweatshirt | tank

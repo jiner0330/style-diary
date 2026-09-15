@@ -18,13 +18,14 @@ interface Plan {
   name?: string
   score?: number
   reason?: string
-  items?: Array<{ name?: string; category?: string; color?: string; style_tags?: string[]; source?: string }>
+  items?: Array<{ name?: string; category?: string; color?: string; style_tags?: string[]; source?: string; ref?: string }>
 }
 
 interface Msg {
   role: "user" | "assistant"
   content: string
   plans?: Plan[]
+  selectedItems?: ClothingItem[]
 }
 
 export default function WardrobePage() {
@@ -91,7 +92,7 @@ export default function WardrobePage() {
       const token = await getAuthToken()
       const selectedItems = items.filter((i) => selected.has(i.id))
       const selectedItemsDetail = selectedItems.length > 0
-        ? selectedItems.map((i) => `${i.name}（${i.category}，${i.sub_category || ""}，${i.color}，${i.material || ""}）`).join("；")
+        ? selectedItems.map((i, idx) => `单品${idx + 1}：${i.name}（${i.category}，${i.sub_category || ""}，${i.color}，${i.material || ""}）`).join("；")
         : ""
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -109,7 +110,7 @@ export default function WardrobePage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "请求失败")
-      setMessages((prev) => [...prev, { role: "assistant", content: data.content || "", plans: data.plans || [] }])
+      setMessages((prev) => [...prev, { role: "assistant", content: data.content || "", plans: data.plans || [], selectedItems }])
     } catch (e: any) {
       setMessages((prev) => [...prev, { role: "assistant", content: `抱歉，搭配服务暂时出错了：${e.message}。请稍后重试～` }])
     } finally {
@@ -280,7 +281,7 @@ function AssistantBubble({ msg, wardrobeItems }: { msg: Msg; wardrobeItems: Clot
           <div className="grid grid-cols-3 gap-2 mb-2">
             {p.items?.map((it, j) => {
               const isUser = it.source === "user"
-              const img = isUser ? matchImage(it.name || "", wardrobeItems) : undefined
+              const img = isUser ? matchItemImage(it, msg.selectedItems || [], wardrobeItems) : undefined
               return (
                 <div
                   key={j}
@@ -317,7 +318,27 @@ function AssistantBubble({ msg, wardrobeItems }: { msg: Msg; wardrobeItems: Clot
   )
 }
 
-function matchImage(name: string, wardrobe: ClothingItem[]): string | undefined {
+function matchItemImage(
+  it: { name?: string; category?: string; color?: string; ref?: string },
+  selectedItems: ClothingItem[],
+  wardrobe: ClothingItem[],
+): string | undefined {
+  // 1. ref 精准匹配：单品N → 勾选快照的第 N-1 件
+  if (it.ref) {
+    const m = it.ref.match(/\d+/)
+    if (m) {
+      const idx = parseInt(m[0], 10) - 1
+      const url = selectedItems[idx]?.image_url
+      if (url) return url
+    }
+  }
+  // 2. 品类 + 颜色(hex) 兜底（勾选快照内）
+  const byCatColor = selectedItems.find(
+    (w) => w.category === it.category && w.color?.toUpperCase() === (it.color || "").toUpperCase(),
+  )
+  if (byCatColor?.image_url) return byCatColor.image_url
+  // 3. 名字匹配兜底（全衣橱）
+  const name = it.name || ""
   if (!name || wardrobe.length === 0) return undefined
   const exact = wardrobe.find((w) => w.name === name)
   if (exact?.image_url) return exact.image_url
