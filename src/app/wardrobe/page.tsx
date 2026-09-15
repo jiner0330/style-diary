@@ -13,12 +13,31 @@ const CATEGORY_LABELS: Record<string, string> = {
   outerwear: "外套", shoes: "鞋", bag: "包", accessory: "配饰",
 }
 
+interface PlanItem {
+  slot?: string
+  name?: string
+  category?: string
+  sub_category?: string
+  color?: string
+  material?: string
+  pattern?: string
+  fit?: string
+  length?: string
+  neckline?: string
+  style_tags?: string[]
+  source?: string
+  ref?: string
+}
+
 interface Plan {
   plan?: number
   name?: string
   score?: number
   reason?: string
-  items?: Array<{ name?: string; category?: string; color?: string; style_tags?: string[]; source?: string; ref?: string }>
+  items?: PlanItem[]
+  imageUrl?: string
+  generating?: boolean
+  error?: string
 }
 
 interface Msg {
@@ -115,6 +134,70 @@ export default function WardrobePage() {
       setMessages((prev) => [...prev, { role: "assistant", content: `抱歉，搭配服务暂时出错了：${e.message}。请稍后重试～` }])
     } finally {
       setAsking(false)
+    }
+  }
+
+  // —— 手动生图：方案卡片上点「生成效果图」——
+  function patchPlan(msgIndex: number, planIndex: number, patch: Partial<Plan>) {
+    setMessages((prev) =>
+      prev.map((m, mi) =>
+        mi !== msgIndex || !m.plans
+          ? m
+          : { ...m, plans: m.plans.map((p, pi) => (pi === planIndex ? { ...p, ...patch } : p)) },
+      ),
+    )
+  }
+
+  function guestGenToday(): number {
+    try {
+      const stored = JSON.parse(localStorage.getItem("guest_gen_count") || "{}")
+      const today = new Date().toISOString().slice(0, 10)
+      return stored.date === today ? stored.count : 0
+    } catch { return 0 }
+  }
+  function incrementGuestGen() {
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const stored = JSON.parse(localStorage.getItem("guest_gen_count") || "{}")
+      const count = stored.date === today ? stored.count + 1 : 1
+      localStorage.setItem("guest_gen_count", JSON.stringify({ date: today, count }))
+    } catch {}
+  }
+
+  async function generatePlan(msgIndex: number, planIndex: number) {
+    const msg = messages[msgIndex]
+    const plan = msg?.plans?.[planIndex]
+    if (!plan || plan.generating || plan.imageUrl) return
+
+    const selectedItems = msg.selectedItems || []
+    const genItems = buildGenItems(plan, selectedItems, items)
+    if (genItems.length === 0) {
+      patchPlan(msgIndex, planIndex, { error: "没有可生成的单品" })
+      return
+    }
+
+    // 游客每日 3 次限制（先查，避免闪 loading）
+    const token = await getAuthToken()
+    if (!token && guestGenToday() >= 3) {
+      toast.error("今日免费次数已用完（3次/天），注册后不限次数", { duration: 5000 })
+      return
+    }
+
+    patchPlan(msgIndex, planIndex, { generating: true, error: undefined })
+    try {
+      const genUrl = process.env.NEXT_PUBLIC_FC_GENERATE_OUTFIT_URL || "/api/generate-outfit"
+      const res = await fetch(genUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ gender: "female", items: genItems }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "生成失败")
+      if (!token) incrementGuestGen()
+      patchPlan(msgIndex, planIndex, { generating: false, imageUrl: data.imageUrl })
+    } catch (e: any) {
+      patchPlan(msgIndex, planIndex, { generating: false, error: e.message || "生成失败" })
+      toast.error(e.message || "生成失败，请重试")
     }
   }
 
@@ -218,7 +301,7 @@ export default function WardrobePage() {
                       : "bg-cream text-charcoal rounded-bl-md"
                   }`}
                 >
-                  {m.role === "assistant" ? <AssistantBubble msg={m} wardrobeItems={items} /> : m.content}
+                  {m.role === "assistant" ? <AssistantBubble msg={m} wardrobeItems={items} onGenerate={(pi) => generatePlan(i, pi)} /> : m.content}
                 </div>
               </div>
             ))}
@@ -268,7 +351,7 @@ export default function WardrobePage() {
   )
 }
 
-function AssistantBubble({ msg, wardrobeItems }: { msg: Msg; wardrobeItems: ClothingItem[] }) {
+function AssistantBubble({ msg, wardrobeItems, onGenerate }: { msg: Msg; wardrobeItems: ClothingItem[]; onGenerate: (planIndex: number) => void }) {
   return (
     <div>
       {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
@@ -281,7 +364,7 @@ function AssistantBubble({ msg, wardrobeItems }: { msg: Msg; wardrobeItems: Clot
           <div className="grid grid-cols-3 gap-2 mb-2">
             {p.items?.map((it, j) => {
               const isUser = it.source === "user"
-              const img = isUser ? matchItemImage(it, msg.selectedItems || [], wardrobeItems) : undefined
+              const img = isUser ? findRealItem(it, msg.selectedItems || [], wardrobeItems)?.image_url : undefined
               return (
                 <div
                   key={j}
@@ -307,43 +390,89 @@ function AssistantBubble({ msg, wardrobeItems }: { msg: Msg; wardrobeItems: Clot
             })}
           </div>
 
-          {/* 占位条：效果图生成中（异步生图 P1 补上） */}
-          <div className="rounded-lg border border-dashed border-rose/30 bg-rose/5 px-3 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-rose font-medium">效果图生成中…</span>
-            <span className="text-[10px] text-warm-gray">预计 1 分钟</span>
-          </div>
+          {/* 生图区：出图 / 生成中 / 点按钮生成 */}
+          {p.imageUrl ? (
+            <div className="rounded-lg overflow-hidden border border-warm-gray/15">
+              <img src={p.imageUrl} alt={p.name} className="w-full h-auto object-cover" draggable={false} />
+            </div>
+          ) : p.generating ? (
+            <div className="rounded-lg border border-dashed border-rose/30 bg-rose/5 px-3 py-4 flex flex-col items-center gap-2">
+              <div className="flex gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-rose/40 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+              <span className="text-[11px] text-rose font-medium">效果图生成中，预计 1 分钟…</span>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-rose/30 bg-rose/5 px-3 py-3">
+              {p.error && <p className="text-[11px] text-warm-gray mb-2">生成失败：{p.error}</p>}
+              <button
+                type="button"
+                onClick={() => onGenerate(i)}
+                className="w-full py-2 rounded-lg bg-rose text-soft-white text-xs font-medium active:scale-[0.98] transition-all"
+                style={{ touchAction: "manipulation" }}
+              >
+                ✨ 生成效果图
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>
   )
 }
 
-function matchItemImage(
+function findRealItem(
   it: { name?: string; category?: string; color?: string; ref?: string },
   selectedItems: ClothingItem[],
   wardrobe: ClothingItem[],
-): string | undefined {
+): ClothingItem | undefined {
   // 1. ref 精准匹配：单品N → 勾选快照的第 N-1 件
   if (it.ref) {
     const m = it.ref.match(/\d+/)
     if (m) {
       const idx = parseInt(m[0], 10) - 1
-      const url = selectedItems[idx]?.image_url
-      if (url) return url
+      const item = selectedItems[idx]
+      if (item?.image_url) return item
     }
   }
   // 2. 品类 + 颜色(hex) 兜底（勾选快照内）
   const byCatColor = selectedItems.find(
     (w) => w.category === it.category && w.color?.toUpperCase() === (it.color || "").toUpperCase(),
   )
-  if (byCatColor?.image_url) return byCatColor.image_url
+  if (byCatColor?.image_url) return byCatColor
   // 3. 名字匹配兜底（全衣橱）
   const name = it.name || ""
   if (!name || wardrobe.length === 0) return undefined
   const exact = wardrobe.find((w) => w.name === name)
-  if (exact?.image_url) return exact.image_url
+  if (exact?.image_url) return exact
   const fuzzy = wardrobe.find((w) => name.includes(w.name) || w.name.includes(name))
-  return fuzzy?.image_url ?? undefined
+  if (fuzzy?.image_url) return fuzzy
+  return undefined
+}
+
+// 组装发给生图接口的单品：user 单品附真实 image_url，suggested 用文字描述
+function buildGenItems(plan: Plan, selectedItems: ClothingItem[], wardrobe: ClothingItem[]) {
+  return (plan.items || [])
+    .filter((it) => !!it.slot)
+    .map((it) => {
+      const isUser = it.source === "user"
+      const real = isUser ? findRealItem(it, selectedItems, wardrobe) : undefined
+      return {
+        slot: it.slot,
+        name: real?.name || it.name || "",
+        category: real?.category || it.category || "",
+        sub_category: real?.sub_category || it.sub_category || null,
+        color: real?.color || it.color || "",
+        material: real?.material || it.material || null,
+        pattern: real?.pattern || it.pattern || null,
+        fit: real?.fit || it.fit || null,
+        length: real?.length || it.length || null,
+        neckline: real?.neckline || it.neckline || null,
+        image_url: real?.image_url || undefined,
+      }
+    })
 }
 
 function WardrobeGridItem({ item, selected, onToggle }: { item: ClothingItem; selected: boolean; onToggle: () => void }) {
